@@ -43,17 +43,7 @@ let package = Package(
             name: "ecvparity",
             targets: ["ecvparity"]
         ),
-
-        // test
-        .executable(name: "t_accounting_syntax", targets: ["AccountingSyntaxTests"]),
-        .executable(
-            name: "t_accounting",
-            targets: ["AccountingTestFlows"]
-        ),
-        .executable(
-            name: "t_accounting_full",
-            targets: ["AccountingTestFlowsFull"]
-        ),
+        .library(name: "AccountingParsers", targets: ["AccountingParsers"]),
     ],
     dependencies: [
         .package(url: "https://github.com/leviouwendijk/plate.git", branch: "master"),
@@ -68,13 +58,10 @@ let package = Package(
         .package(url: "https://github.com/leviouwendijk/Arguments.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Difference.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Position.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/IO.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Readers.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Path.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Workspace.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/TestFlows.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Syntax.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/Testing.git", branch: "master"),
     ],
     targets: [
         .target(
@@ -157,11 +144,6 @@ let package = Package(
             ],
             path: "Sources/AccountingV2"
         ),
-        .target(
-            name: "AccountingV2Fixtures",
-            dependencies: ["AccountingV2"],
-            path: "Testing/AccountingV2Fixtures"
-        ),
         .executableTarget(
             name: "ec",
             dependencies: [
@@ -211,65 +193,6 @@ let package = Package(
                 .product(name: "Terminal", package: "Terminal"),
             ],
             path: "Sources/EntryCompilerParity"
-        ),
-
-        .executableTarget(
-            name: "AccountingSyntaxTests",
-            dependencies: [
-                "AccountingSyntax",
-                "AccountingCompiler",
-                .product(name: "Syntax", package: "Syntax"),
-                .product(name: "SyntaxStyling", package: "Syntax"),
-                .product(name: "Testing", package: "Testing"),
-            ],
-            path: "Testing/AccountingSyntaxTests"
-        ),
-        .executableTarget(
-            name: "AccountingTestFlows",
-            dependencies: [
-                "Accounting",
-                "AccountingV2",
-                "AccountingV2Fixtures",
-                "AccountingParsers",
-                "AccountingCompiler",
-                .product(name: "plate", package: "plate"),
-                .product(name: "Primitives", package: "Primitives"),
-                .product(name: "Methods", package: "Methods"),
-                .product(name: "HTML", package: "HTML"),
-                .product(name: "CSS", package: "CSS"),
-                .product(name: "Writers", package: "Writers"),
-                .product(name: "Terminal", package: "Terminal"),
-                .product(name: "Arguments", package: "Arguments"),
-                .product(name: "TestFlows", package: "TestFlows"),
-                .product(name: "Readers", package: "Readers"),
-                .product(name: "IO", package: "IO"),
-                .product(name: "Path", package: "Path"),
-                .product(name: "Workspace", package: "Workspace"),
-            ],
-            path: "Testing/AccountingTestFlows"
-        ),
-
-        .executableTarget(
-            name: "AccountingTestFlowsFull",
-            dependencies: [
-                "Accounting",
-                "AccountingParsers",
-                "AccountingCompiler",
-                .product(name: "plate", package: "plate"),
-                .product(name: "Primitives", package: "Primitives"),
-                .product(name: "Methods", package: "Methods"),
-                .product(name: "HTML", package: "HTML"),
-                .product(name: "CSS", package: "CSS"),
-                .product(name: "Writers", package: "Writers"),
-                .product(name: "Terminal", package: "Terminal"),
-                .product(name: "Arguments", package: "Arguments"),
-                .product(name: "TestFlows", package: "TestFlows"),
-                .product(name: "Readers", package: "Readers"),
-                .product(name: "IO", package: "IO"),
-                .product(name: "Path", package: "Path"),
-                .product(name: "Workspace", package: "Workspace"),
-            ],
-            path: "Testing/AccountingTestFlowsFull"
         ),
     ]
 )

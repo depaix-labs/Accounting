@@ -15,3 +15,5 @@ libAccounting.dylib*
 .build/
 
 current
+**/.testflows/*
+!**/.testflows/snapshots/
