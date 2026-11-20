@@ -7,29 +7,29 @@ case "$mode" in
     all)
         (
             sbm || return 1;
-            swift run t_accounting && swift run t_accounting_full;
+            swift run --package-path Tests t_accounting && swift run --package-path Tests t_accounting_full;
             swift run ec_v2 period;
             swift run ec_v2 compile --closing --carryforward --by-entity --trace;
-            cd Testing/accounting-example && ec;
+            cd Tests/Fixtures/accounting-example && ec;
         )
         ;;
     long)
         (
-            swift run t_accounting_full;
+            swift run --package-path Tests t_accounting_full;
         )
         ;;
     check)
         (
             sbm || return 1;
-            swift run t_accounting;
-            cd Testing/accounting-example \
+            swift run --package-path Tests t_accounting;
+            cd Tests/Fixtures/accounting-example \
                 && ec \
                 && ec period year --anchor 2026-01-01 --by-entity;
         )
         ;;
     fast)
         (
-            swift run t_accounting;
+            swift run --package-path Tests t_accounting;
         )
         ;;
     v2)
@@ -47,7 +47,7 @@ case "$mode" in
         ;;
     ec)
         (
-            cd Testing/accounting-example && ec;
+            cd Tests/Fixtures/accounting-example && ec;
         )
         ;;
     *)
@@ -56,8 +56,8 @@ case "$mode" in
         ;;
 esac
 
-# ec period month --project Testing/accounting-example --anchor 2026-08-15 --to-date
-# ec period month --project Testing/accounting-example --anchor 2026-08-15
-# ec period year --project Testing/accounting-example --anchor 2026-08-15 --to-date
-# ec period year --project Testing/accounting-example --anchor 2026-08-15
-# ec period lifetime --project Testing/accounting-example --anchor 2026-08-15
+# ec period month --project Tests/Fixtures/accounting-example --anchor 2026-08-15 --to-date
+# ec period month --project Tests/Fixtures/accounting-example --anchor 2026-08-15
+# ec period year --project Tests/Fixtures/accounting-example --anchor 2026-08-15 --to-date
+# ec period year --project Tests/Fixtures/accounting-example --anchor 2026-08-15
+# ec period lifetime --project Tests/Fixtures/accounting-example --anchor 2026-08-15
