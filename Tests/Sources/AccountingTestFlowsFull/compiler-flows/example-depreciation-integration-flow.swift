@@ -10,7 +10,7 @@ extension AccountingTestFlowsSuite {
                 let packageRoot = URL(fileURLWithPath: #filePath)
                     .deletingLastPathComponent().deletingLastPathComponent()
                     .deletingLastPathComponent().deletingLastPathComponent()
-                let projectRoot = packageRoot.appendingPathComponent("Testing/accounting-example", isDirectory: true)
+                let projectRoot = packageRoot.appendingPathComponent("Fixtures/accounting-example", isDirectory: true)
                 let driver = try EntryCompileDriver.compile(
                     project: EntryCompilerProject(root: projectRoot),
                     setting: CompileDriveSetting(loc_trace: false)

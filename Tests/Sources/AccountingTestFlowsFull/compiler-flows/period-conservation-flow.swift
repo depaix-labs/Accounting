@@ -209,10 +209,10 @@ extension AccountingTestFlowsSuite {
                 // Reuse only the sample's RGS/settings; future example postings do
                 // not enter this regression fixture.
                 let exampleRoot = packageRoot.appendingPathComponent(
-                    "Testing/accounting-example", isDirectory: true
+                    "Fixtures/accounting-example", isDirectory: true
                 )
                 let fixtureRoot = packageRoot.appendingPathComponent(
-                    "Testing/fixtures/period-conservation", isDirectory: true
+                    "Fixtures/period-conservation", isDirectory: true
                 )
                 let fm = FileManager.default
                 let projectRoot = fm.temporaryDirectory.appendingPathComponent(

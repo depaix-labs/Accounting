@@ -17,7 +17,7 @@ extension AccountingTestFlowsSuite {
                     .deletingLastPathComponent()
 
                 let projectRoot = packageRoot.appendingPathComponent(
-                    "Testing/accounting-example",
+                    "Fixtures/accounting-example",
                     isDirectory: true
                 )
 
@@ -193,7 +193,7 @@ extension AccountingTestFlowsSuite {
                     .deletingLastPathComponent()
 
                 let projectRoot = packageRoot.appendingPathComponent(
-                    "Testing/accounting-example",
+                    "Fixtures/accounting-example",
                     isDirectory: true
                 )
 

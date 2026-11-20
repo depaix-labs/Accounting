@@ -12,7 +12,7 @@ extension AccountingTestFlowsSuite {
                     .deletingLastPathComponent().deletingLastPathComponent()
                     .deletingLastPathComponent().deletingLastPathComponent()
                 let exampleRoot = packageRoot.appendingPathComponent(
-                    "Testing/accounting-example", isDirectory: true
+                    "Fixtures/accounting-example", isDirectory: true
                 )
 
                 // Writer tests must never mutate the version-controlled example.

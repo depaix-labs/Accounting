@@ -12,7 +12,7 @@ extension AccountingTestFlowsSuite {
                     .deletingLastPathComponent()
                     .deletingLastPathComponent()
                     .deletingLastPathComponent()
-                let example = packageRoot.appendingPathComponent("Testing/accounting-example", isDirectory: true)
+                let example = packageRoot.appendingPathComponent("Fixtures/accounting-example", isDirectory: true)
                 let scenario = example.appendingPathComponent("scenarios/assets", isDirectory: true)
                 let fm = FileManager.default
                 let scratch = fm.temporaryDirectory.appendingPathComponent(
