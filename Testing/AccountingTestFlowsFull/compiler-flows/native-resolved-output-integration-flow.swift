@@ -254,17 +254,17 @@ extension AccountingTestFlowsSuite {
                 )
                 try categorized.assertIdentities()
 
-                try Expect.equal(categorized.source(.assets), Decimal(4947), "DEALER.source-assets")
+                try Expect.equal(categorized.source(.assets), Decimal(4897), "DEALER.source-assets")
                 try Expect.equal(categorized.source(.liabilities), Decimal(222), "DEALER.source-liabilities")
                 try Expect.equal(categorized.source(.equity), Decimal(1000), "DEALER.source-equity")
                 try Expect.equal(categorized.source(.revenue), Decimal(4150), "DEALER.source-revenue")
-                try Expect.equal(categorized.source(.expenses), Decimal(425), "DEALER.source-expenses")
+                try Expect.equal(categorized.source(.expenses), Decimal(475), "DEALER.source-expenses")
                 try Expect.equal(categorized.source(.dividends), Decimal(0), "DEALER.source-distributions")
                 try Expect.equal(categorized.sourceIdentityDelta, Decimal(0), "DEALER.open-identity")
 
-                try Expect.equal(categorized.closing(.assets), Decimal(4947), "DEALER.closing-assets")
+                try Expect.equal(categorized.closing(.assets), Decimal(4897), "DEALER.closing-assets")
                 try Expect.equal(categorized.closing(.liabilities), Decimal(222), "DEALER.closing-liabilities")
-                try Expect.equal(categorized.closing(.equity), Decimal(4725), "DEALER.closing-equity")
+                try Expect.equal(categorized.closing(.equity), Decimal(4675), "DEALER.closing-equity")
                 try Expect.equal(categorized.closingIdentityDelta, Decimal(0), "DEALER.closing-identity")
 
                 if validated.chart.index?.byIdentifier["BEivKapPro"] != nil {
@@ -500,13 +500,13 @@ extension AccountingTestFlowsSuite {
                     "private capital withdrawal inherits distribution category"
                 )
                 try Expect.equal(withdrawn.source(.dividends), Decimal(125), "drawings.source-distributions")
-                try Expect.equal(withdrawn.source(.assets), Decimal(4822), "drawings.source-assets")
+                try Expect.equal(withdrawn.source(.assets), Decimal(4772), "drawings.source-assets")
                 try Expect.equal(withdrawn.source(.equity), Decimal(1000), "drawings.source-equity")
                 try Expect.equal(withdrawn.source(.revenue), Decimal(4150), "drawings.source-revenue")
-                try Expect.equal(withdrawn.source(.expenses), Decimal(425), "drawings.source-expenses")
-                try Expect.equal(withdrawn.closing(.assets), Decimal(4822), "drawings.closing-assets")
+                try Expect.equal(withdrawn.source(.expenses), Decimal(475), "drawings.source-expenses")
+                try Expect.equal(withdrawn.closing(.assets), Decimal(4772), "drawings.closing-assets")
                 try Expect.equal(withdrawn.closing(.liabilities), Decimal(222), "drawings.closing-liabilities")
-                try Expect.equal(withdrawn.closing(.equity), Decimal(4600), "drawings.closing-equity")
+                try Expect.equal(withdrawn.closing(.equity), Decimal(4550), "drawings.closing-equity")
                 try Expect.equal(withdrawn.sourceIdentityDelta, Decimal(0), "drawings.source-identity")
                 try Expect.equal(withdrawn.closingIdentityDelta, Decimal(0), "drawings.closing-identity")
 

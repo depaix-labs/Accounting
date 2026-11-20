@@ -35,22 +35,14 @@ extension VATCommand {
                 calendar: calendar
             )
 
-            let native = try NativeOutputBuilder.buildCompileOutput(
-                result: context.result,
-                cut: .init(
-                    target: .L3,
-                    includeCodes: [],
-                    includeIntermediates: true,
-                    omitZerosBeyondLevel1: true
-                ),
-                omslag: .apply,
-                entity: .vof,
-                autoClose: true
-            )
+            // VAT status computes its own source-derived report. It needs
+            // the native RGS chart, not an unrelated financial statement
+            // assembly or a trial-balance compatibility projection.
+            let chart = try PeriodAssembler.buildChart(from: context.result)
 
             let report = try VATStatusBuilder.build(
                 resolvedEntries: context.result.resolved,
-                chart: native.chart,
+                chart: chart,
                 title: "VAT status – through \(periodLabel)",
                 period: period.windows.window,
                 tolerance: options.tolerance,

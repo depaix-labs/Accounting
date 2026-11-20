@@ -150,7 +150,7 @@ public enum ECSemanticTokenKind: String, Sendable, Codable {
     case type
     case namespace
     case comment
-    case operatorToken
+    case `operator`
     case property
 }
 

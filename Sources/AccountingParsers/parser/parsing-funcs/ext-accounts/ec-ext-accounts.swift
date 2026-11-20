@@ -3,12 +3,10 @@ import Accounting
 
 public extension EntryCompilerParsing {
     // Parse an account reference *flexibly* from entries:
-    //   - number       → 10201
-    //   - account 10201
-    //   - account(10201)
-    //   - account BLimBanRba
-    //   - account(BLimBanRba)
-    //   - dotted/arrow path (legacy) → kept as .path([...]) for the store to decide.
+    //   - numeric literals (with or without `account`) -> .code
+    //   - single symbolic RGS names (with or without `account`) -> .identifier
+    //   - dotted/arrow paths -> .path (legacy, not a local-account namespace)
+    // Account definitions from config/accounts are not currently installed.
     @inlinable
     func parseAccountRefFlexible() throws -> AccountRef {
         // Single number
@@ -20,7 +18,7 @@ public extension EntryCompilerParsing {
 
         // Legacy "account" prefix
         switch current {
-        case .ident("account"), .keyword("account"):
+        case .ident("account"), .keyword("account"), .account("account"):
             advance()
 
             if current == .lPar {
@@ -41,7 +39,7 @@ public extension EntryCompilerParsing {
                         return .code(raw)
                     }
 
-                    return .path([raw])
+                    return .identifier(raw)
 
                 default:
                     let segs = readFlatSegments()
@@ -49,6 +47,9 @@ public extension EntryCompilerParsing {
 
                     if let first = segs.first, Int(first) != nil {
                         return .code(first)
+                    }
+                    if segs.count == 1 {
+                        return .identifier(segs[0])
                     }
 
                     return .path(segs)
@@ -68,7 +69,7 @@ public extension EntryCompilerParsing {
                     return .code(raw)
                 }
 
-                return .path([raw])
+                return .identifier(raw)
 
             default:
                 break
@@ -83,6 +84,9 @@ public extension EntryCompilerParsing {
 
         if let first = segs.first, Int(first) != nil {
             return .code(first)
+        }
+        if segs.count == 1 {
+            return .identifier(segs[0])
         }
 
         return .path(segs)

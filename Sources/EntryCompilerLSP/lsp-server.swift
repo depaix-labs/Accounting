@@ -2,6 +2,7 @@ import Foundation
 import Accounting
 import AccountingCompiler
 import AccountingParsers
+import AccountingSyntax
 
 private struct ECLSPDocumentState {
     let uri: String
@@ -19,17 +20,7 @@ final class ECLSPServer {
     private var initializeRootURI: String?
     private var isShuttingDown = false
 
-    private let semanticTokenLegend: [String] = [
-        "keyword",
-        "variable",
-        "number",
-        "string",
-        "type",
-        "namespace",
-        "comment",
-        "operator",
-        "property",
-    ]
+    private let semanticTokenLegend = EntryCompilerSyntax.semanticTypes
 
     func run() {
         eclspLog("server.run:start")
@@ -468,32 +459,33 @@ final class ECLSPServer {
         id: Any,
         params: [String: Any]
     ) -> [String: Any] {
-        guard
-            let state = stateAndPosition(from: params)
-        else {
+        guard let textDocument = params["textDocument"] as? [String: Any],
+              let uri = textDocument["uri"] as? String,
+              let document = documents[uri] else {
             return [
                 "jsonrpc": "2.0",
                 "id": id,
-                "result": [
-                    "data": []
-                ]
+                "error": ["code": -32602, "message": "Missing or unknown textDocument.uri"]
             ]
         }
 
-        let tokens = ECEditorService.semanticTokens(
-            source: state.document.text,
-            flavor: state.document.flavor
-        )
-
-        let data = deltaEncodeSemanticTokens(tokens)
-
-        return [
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": [
-                "data": data
+        do {
+            let data = try EntryCompilerSyntax.encodedSemanticTokens(
+                source: document.text,
+                flavor: document.flavor
+            )
+            return [
+                "jsonrpc": "2.0",
+                "id": id,
+                "result": ["data": data]
             ]
-        ]
+        } catch {
+            return [
+                "jsonrpc": "2.0",
+                "id": id,
+                "error": ["code": -32603, "message": "Semantic token projection failed: \(error)"]
+            ]
+        }
     }
 
     private func publishDiagnostics(
@@ -926,7 +918,7 @@ final class ECLSPServer {
                 return "namespace"
             case .comment:
                 return "comment"
-            case .operatorToken:
+            case .operator:
                 return "operator"
             case .property:
                 return "property"

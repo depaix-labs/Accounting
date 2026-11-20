@@ -1,20 +1,48 @@
 #!/bin/zsh
-set -e
+set -euo pipefail
 
 mode=${1:-}
 
 case "$mode" in
-    full)
+    all)
+        (
+            sbm || return 1;
+            swift run t_accounting && swift run t_accounting_full;
+            swift run ec_v2 period;
+            swift run ec_v2 compile --closing --carryforward --by-entity --trace;
+            cd Testing/accounting-example && ec;
+        )
+        ;;
+    long)
+        (
+            swift run t_accounting_full;
+        )
+        ;;
+    check)
         (
             sbm || return 1;
             swift run t_accounting;
-            cd Testing/accounting-example && ec;
+            cd Testing/accounting-example \
+                && ec \
+                && ec period year --anchor 2026-01-01 --by-entity;
         )
         ;;
     fast)
         (
-            sbm || return 1;
-            cd Testing/accounting-example && ec;
+            swift run t_accounting;
+        )
+        ;;
+    v2)
+        (
+            swift run ec_v2 period;
+            swift run ec_v2 compile --closing --carryforward --by-entity --trace;
+            swift run ec_v2 continuity;
+            swift run ec_v2 windows --unit month --anchor 2026-10-15 --count 2;
+            swift run ec_v2 windows --unit month --anchor 2026-10-15 --count 4;
+            swift run ec_v2 positions --unit month --anchor 2026-10-15 --count 2;
+            swift run ec_v2 positions --unit month --anchor 2026-10-15 --count 4;
+            swift run ec_v2 bounded;
+            swift run ec_v2 comparative;
         )
         ;;
     ec)
@@ -23,7 +51,7 @@ case "$mode" in
         )
         ;;
     *)
-        echo "usage: ./test <full|fast|ec>" >&2
+        echo "usage: ./test <all|long|check|fast|v2|ec>" >&2
         exit 1
         ;;
 esac

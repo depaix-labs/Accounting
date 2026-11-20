@@ -1,5 +1,6 @@
 import Accounting
 import AccountingParsers
+import AccountingSyntax
 import Foundation
 import Position
 
@@ -82,26 +83,16 @@ public enum ECDocumentAnalyzer {
 
     public static func semanticTokens(
         from analysis: ECDocumentAnalysis
-    ) -> [ECSemanticToken] {
-        zip(analysis.tokens, analysis.spans).compactMap { token, span in
-            guard token != .eof else {
-                return nil
-            }
-
-            let kind = semanticKind(for: token)
-
-            let length: Int
-            if span.start.line == span.end.line {
-                length = max(1, span.end.column - span.start.column + 1)
-            } else {
-                length = 1
-            }
-
-            return ECSemanticToken(
-                line: span.start.line - 1,
-                startColumn: span.start.column - 1,
-                length: length,
-                kind: kind
+    ) throws -> [ECSemanticToken] {
+        try EntryCompilerSyntax.semanticTokens(
+            source: analysis.source,
+            flavor: analysis.flavor
+        ).map { token in
+            ECSemanticToken(
+                line: token.line,
+                startColumn: token.startColumn,
+                length: token.length,
+                kind: semanticKind(for: token.kind)
             )
         }
     }
@@ -274,45 +265,18 @@ private extension ECDocumentAnalyzer {
 
     @inline(__always)
     static func semanticKind(
-        for token: EntryCompilerToken
+        for kind: EntryCompilerSyntax.Kind
     ) -> ECSemanticTokenKind {
-        switch token {
-        case .keyword:
-            return .keyword
-
-        case .ident:
-            return .variable
-
-        case .number:
-            return .number
-
-        case .string:
-            return .string
-
-        case .dateLiteral:
-            return .property
-
-        case .account:
-            return .type
-
-        case .entity:
-            return .namespace
-
-        case .arrow,
-             .dot,
-             .equals,
-             .comma,
-             .hash:
-            return .operatorToken
-
-        case .lBrace,
-             .rBrace,
-             .lPar,
-             .rPar:
-            return .operatorToken
-
-        case .eof:
-            return .variable
+        switch kind {
+        case .keyword: .keyword
+        case .identifier: .variable
+        case .number: .number
+        case .string: .string
+        case .date: .property
+        case .account: .type
+        case .entity: .namespace
+        case .comment: .comment
+        case .punctuation: .operator
         }
     }
 }

@@ -45,48 +45,43 @@ enum CompileCommand: ParsedArgumentCommand {
             }
         }
 
-        do {
-            let native = try NativeOutputBuilder.buildCompileOutput(
-                result: context.result,
-                cut: AssembleCut(
-                    target: .L3,
-                    includeCodes: [
-                        "BLimBanRba",
-                        "WOmzNopOlh",
-                    ],
-                    includeIntermediates: true,
-                    omitZerosBeyondLevel1: true
-                ),
-                omslag: .apply,
-                entity: .vof,
-                autoClose: true
-            )
+        // Validated source movements remain available on this result.
+        // Statement overlays are produced by the existing assembler kernel.
+        let native = try NativeOutputBuilder.buildResolvedCompileOutput(
+            result: context.result,
+            cut: AssembleCut(
+                target: .L3,
+                includeCodes: [
+                    "BLimBanRba",
+                    "WOmzNopOlh",
+                ],
+                includeIntermediates: true,
+                omitZerosBeyondLevel1: true
+            ),
+            omslag: .apply,
+            entity: .vof,
+            autoClose: true
+        )
 
-            let projectionKind = try EntryCompilerProjection.resolve(
-                taxonomy: options.projection.taxonomy,
-                presentation: options.projection.presentation,
-                projectionDiagnostics: options.projection.projectionDiagnostics
-            )
+        let projectionKind = try EntryCompilerProjection.resolve(
+            taxonomy: options.projection.taxonomy,
+            presentation: options.projection.presentation,
+            projectionDiagnostics: options.projection.projectionDiagnostics
+        )
 
-            try ProjectionPipeline.render(
-                native,
-                as: projectionKind,
-                options: NativeRenderOptions(
-                    caption: options.presentation.caption,
-                    detail: options.presentation.detail,
-                    equityCode: "BEiv",
-                    includeOtherBucket: false,
-                    comparePrevious: false,
-                    showRangeHeading: true
-                ),
-                showProjectionDiagnostics: options.projection.projectionDiagnostics
-            )
-        } catch {
-            fputs(
-                "warning: assembler output failed: \(error)\n",
-                stderr
-            )
-        }
+        try ProjectionPipeline.render(
+            native,
+            as: projectionKind,
+            options: NativeRenderOptions(
+                caption: options.presentation.caption,
+                detail: options.presentation.detail,
+                equityCode: "BEiv",
+                includeOtherBucket: false,
+                comparePrevious: false,
+                showRangeHeading: true
+            ),
+            showProjectionDiagnostics: options.projection.projectionDiagnostics
+        )
     }
 }
 

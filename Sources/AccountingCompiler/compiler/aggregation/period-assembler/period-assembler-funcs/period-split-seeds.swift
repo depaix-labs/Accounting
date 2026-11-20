@@ -2,20 +2,22 @@ import Accounting
 import Foundation
 
 public extension PeriodAssembler {
-    /// IS from window; BS = OpeningBeg(from pre-window) + WINDOW; NI overlay from same source.
+    /// Shared period calculation from direct, validated source seeds.
+    /// Opening balances and NI overlays are derived presentation values.
+    /// Source postings are never replaced by these adjustments.
     @inline(__always)
-    static func assembleSplitSeeds(
+    internal static func assembleSplitSourceSeeds(
         chart: CompiledChart,
-        tbIncomeWindow: [TrialBalanceRow],
-        tbBalanceWindow: [TrialBalanceRow],          // ← WINDOW movements (use YTD only when you choose range-to-date at the call-site)
-        tbOverlayForNI: [TrialBalanceRow],           // ← typically WINDOW (or YTD if you present YTD)
-        tbPreWindowForOpening: [TrialBalanceRow]?,   // ← pre-window seed for *Beg mapping (+ pre-window NI injection inside helper)
+        sourceIncomeWindow: [Int: Decimal],
+        sourceBalanceWindow: [Int: Decimal],
+        sourceOverlayForNI: [Int: Decimal],
+        sourcePreWindowForOpening: [Int: Decimal]?,
+        sourceBalanceWindowAE: [AccEntKey: Decimal],
+        sourcePreWindowForOpeningAE: [AccEntKey: Decimal]?,
         cut: AssembleCut,
         omslag: OmslagMode,
         entity: BusinessEntity,
-        // ownership split for “Aandeel in de overwinst” + optional per-row entity mapper
-        ownershipSlices: [OwnershipSlice] = [],
-        entityIdOnRow: (TrialBalanceRow) -> Int? = { _ in nil }
+        ownershipSlices: [OwnershipSlice] = []
     ) throws -> StatementBundle {
         // maps + index
         let ch  = try chart.ensuringIndex(enrichNodes: true, strict: false)
@@ -34,20 +36,26 @@ public extension PeriodAssembler {
         @inline(__always) func isBeg(_ id: Int) -> Bool { (codeById[id] ?? "").hasSuffix("Beg") }
         let equityTargetId: Int = isBeg(eqId_) ? (maps.parentById[eqId_] ?? eqId_) : eqId_
 
-        // Seeds (plain)
-        let seedIncome  = RGSAssembler.seedLeafs(from: tbIncomeWindow,  using: index)
-        let seedWinBal  = RGSAssembler.seedLeafs(from: tbBalanceWindow, using: index)
-        let seedOverlay = RGSAssembler.seedLeafs(from: tbOverlayForNI,  using: index)
+        // Validate the original direct movements independently of
+        // historical opening balances and derived closing overlays.
+        let seedIncome = sourceIncomeWindow
+        let seedWinBal = sourceBalanceWindow
+        let seedOverlay = sourceOverlayForNI
         try RGSAssembler.assertSeedSumsToZero(seedIncome)
         try RGSAssembler.assertSeedSumsToZero(seedWinBal)
         try RGSAssembler.assertSeedSumsToZero(seedOverlay)
 
         // Opening (plain) → routed to Beg (your helper also injects pre-window NI into equity opening)
         let seedOpeningPlain: [Int: Decimal] = {
-            guard let tbHist = tbPreWindowForOpening, !tbHist.isEmpty else { return [:] }
+            guard let historical = sourcePreWindowForOpening,
+                  !historical.isEmpty else {
+                return [:]
+            }
             return RGSAssembler.openingBegSeed(
-                from: tbHist,
-                chart: ch, index: index, maps: maps,
+                fromSourceSeeds: historical,
+                chart: ch,
+                index: index,
+                maps: maps,
                 routing: entity.periodOpeningRouting
             )
         }()
@@ -79,15 +87,21 @@ public extension PeriodAssembler {
         let manualAtNiWin = seedWinBal[niId] ?? 0
         let manualAtEqWin = seedWinBal[equityTargetId] ?? 0
 
-        if niOverlay != 0 && (manualAtNiWin != 0 || manualAtEqWin != 0) {
-            let niCode = codeById[niId] ?? "#\(niId)"
-            let eqCode = codeById[equityTargetId] ?? "#\(equityTargetId)"
-            fputs("warning: auto-close NI overlay present but manual postings detected at "
-                  + "\(niCode)=\(manualAtNiWin) and/or \(eqCode)=\(manualAtEqWin); "
-                  + "overlay suppressed for this window.\n", stderr)
-        }
+        let autoCloseAudit = AutoCloseAudit.evaluate(
+            ni: niOverlay,
+            niNode: (
+                code: codeById[niId] ?? "#\(niId)",
+                id: niId
+            ),
+            equityNode: (
+                code: codeById[equityTargetId] ?? "#\(equityTargetId)",
+                id: equityTargetId
+            ),
+            manualAtNetIncome: manualAtNiWin,
+            manualAtEquity: manualAtEqWin
+        )
 
-        if niOverlay != 0 && manualAtNiWin == 0 && manualAtEqWin == 0 {
+        if niOverlay != 0 && !autoCloseAudit.suppressed {
             seedBalance[niId,           default: 0] += (-niOverlay) // zero P&L node
             seedBalance[equityTargetId, default: 0] += ( niOverlay) // push into equity container (non-Beg)
         }
@@ -119,19 +133,21 @@ public extension PeriodAssembler {
         do {
             // AE Opening (routes Beg; preserves historical equity opening; splits only pre-window NI by ownershipSlices)
             var seedOpeningAE: [AccEntKey: Decimal] = [:]
-            if let tbHist = tbPreWindowForOpening, !tbHist.isEmpty {
+            if let historicalAE = sourcePreWindowForOpeningAE,
+               !historicalAE.isEmpty {
                 seedOpeningAE = RGSAssembler.openingBegSeedAE(
-                    from: tbHist,
-                    chart: ch, index: index, maps: maps,
+                    fromSourceSeeds: historicalAE,
+                    chart: ch,
+                    index: index,
+                    maps: maps,
                     routing: entity.periodOpeningRouting,
-                    profitShareCode: entity.profitShareCode,   // e.g. BEivKapOndAow
-                    ownershipSlices: ownershipSlices,
-                    entityIdOnRow: entityIdOnRow
+                    profitShareCode: entity.profitShareCode,
+                    ownershipSlices: ownershipSlices
                 )
             }
 
-            // AE WINDOW movements
-            let seedWinBalAE = RGSAssembler.seedLeafsAE(from: tbBalanceWindow, using: index, entityId: entityIdOnRow)
+            // Original entity-account window movements.
+            let seedWinBalAE = sourceBalanceWindowAE
 
             // Base = Opening(AE) + WINDOW(AE)
             var seedBalanceAE = seedOpeningAE
@@ -160,16 +176,7 @@ public extension PeriodAssembler {
             // }
 
             // --- AE NI overlay: allocate equity overlay by ownership slices (or nil-entity fallback)
-            let manualAtEqWin = seedWinBal[equityTargetId] ?? 0
-            if niOverlay != 0 && (manualAtNiWin != 0 || manualAtEqWin != 0) {
-                let niCode = codeById[niId] ?? "#\(niId)"
-                let eqCode = codeById[equityTargetId] ?? "#\(equityTargetId)"
-                fputs("warning: auto-close NI overlay (AE) present but manual postings detected at "
-                      + "\(niCode)=\(manualAtNiWin) and/or \(eqCode)=\(manualAtEqWin); "
-                      + "AE overlay suppressed for this window.\n", stderr)
-            }
-
-            if niOverlay != 0 && manualAtNiWin == 0 && manualAtEqWin == 0 {
+            if niOverlay != 0 && !autoCloseAudit.suppressed {
                 if ownershipSlices.isEmpty {
                     seedBalanceAE[AccEntKey(equityTargetId, nil), default: 0] += niOverlay
                 } else {
@@ -211,7 +218,7 @@ public extension PeriodAssembler {
             effectiveCut: localCut
         )
 
-        return try AssemblerKernel.makeBundle(
+        let bundle = try AssemblerKernel.makeBundle(
             chart: chart,
             index: index,
             maps: maps,
@@ -220,5 +227,7 @@ public extension PeriodAssembler {
             businessEntity: entity,
             rolled: rolled
         )
+
+        return bundle.withAutoCloseAudit(autoCloseAudit)
     }
 }

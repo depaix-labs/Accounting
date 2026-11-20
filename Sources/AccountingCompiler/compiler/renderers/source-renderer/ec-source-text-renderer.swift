@@ -1,5 +1,6 @@
 import Accounting
 import Foundation
+import SyntaxStyling
 
 public enum ECSourceTextRenderer {}
 
@@ -8,11 +9,13 @@ extension ECSourceTextRenderer {
 
     public static func render(
         files: [ECSourceFile],
-        options: Options = .init()
+        options: Options = .init(),
+        theme: SyntaxTheme = .plain
     ) -> String {
         let document = ECSourcePresenter.present(
             files: files,
-            options: options
+            options: options,
+            theme: theme
         )
 
         return render(

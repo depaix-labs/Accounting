@@ -1,5 +1,6 @@
 import Accounting
 import AccountingCompiler
+import AccountingSyntax
 import Arguments
 import Foundation
 import Interfaces
@@ -237,7 +238,8 @@ enum MetaCommand: ArgumentCommand {
 
                 let document = ECSourcePresenter.present(
                     files: matchedFiles,
-                    options: presentationOptions
+                    options: presentationOptions,
+                    theme: EntryCompilerSyntax.sourceLightTheme
                 )
 
                 return MetaAuditHTMLRenderer.SourceAppendix(

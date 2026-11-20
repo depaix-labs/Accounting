@@ -170,6 +170,20 @@ public struct VATFilingReconciliation: Codable, Sendable, Hashable {
     }
 }
 
+public enum VATFilingReadinessError: LocalizedError, Sendable {
+    case missingBalanceReconciliation
+    case unresolvedWarnings([String])
+
+    public var errorDescription: String? {
+        switch self {
+        case .missingBalanceReconciliation:
+            return "VAT filing is not approved: no balance-sheet reconciliation was supplied."
+        case .unresolvedWarnings(let warnings):
+            return "VAT filing is not approved: " + warnings.joined(separator: " | ")
+        }
+    }
+}
+
 public struct VATFilingReport: Codable, Sendable, SectionedPresentableOutput {
     public let title: String
     public let period: VATPeriod
@@ -180,6 +194,18 @@ public struct VATFilingReport: Codable, Sendable, SectionedPresentableOutput {
     public let filingBalanceRows: [VATFilingBalanceRow]
     public let reconciliation: VATFilingReconciliation
     public let warnings: [String]
+
+    /// A filing cannot be approved without both a balance-sheet comparison
+    /// and resolution of every reported discrepancy or review condition.
+    public func assertReadyForFiling() throws {
+        guard reconciliation.balanceSheetNetPosition != nil,
+              reconciliation.statusDifference != nil else {
+            throw VATFilingReadinessError.missingBalanceReconciliation
+        }
+        guard warnings.isEmpty else {
+            throw VATFilingReadinessError.unresolvedWarnings(warnings)
+        }
+    }
 
     public init(
         title: String,

@@ -1,5 +1,6 @@
 import Accounting
 import AccountingParsers
+import AccountingSyntax
 import Foundation
 
 public struct ECSourceDocument: Sendable {
@@ -75,13 +76,16 @@ public struct ECSourcePresentedBlock: Sendable {
 public struct ECSourcePresentedLine: Sendable {
     public let number: Int
     public let fragments: [ECSyntaxFragment]
+    public let styledFragments: [ECStyledSyntaxFragment]?
 
     public init(
         number: Int,
-        fragments: [ECSyntaxFragment]
+        fragments: [ECSyntaxFragment],
+        styledFragments: [ECStyledSyntaxFragment]? = nil
     ) {
         self.number = number
         self.fragments = fragments
+        self.styledFragments = styledFragments
     }
 
     public var text: String {

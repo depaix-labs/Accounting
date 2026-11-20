@@ -32,6 +32,14 @@ extension AccountingTestFlowsSuite {
                     statusQuarter: nil, balanceSheetNetPosition: nil,
                     calendar: cal
                 )
+                // An isolated computation without a balance-sheet status
+                // comparison must never claim to be filing-ready.
+                do {
+                    try report.assertReadyForFiling()
+                    try Expect.true(false, "unreconciled VAT report must be rejected")
+                } catch VATFilingReadinessError.missingBalanceReconciliation {
+                    // Expected: an exploratory report is not filing-approved.
+                }
                 try Expect.equal(report.reconciliation.currentReturnRaw, Decimal(-189), "example.q2-vat-net")
                 try Expect.equal(report.reconciliation.currentPayable, Decimal(189), "example.q2-vat-payable")
                 try Expect.equal(report.reconciliation.unclassifiedDifference, Decimal(0), "example.q2-vat-classification")

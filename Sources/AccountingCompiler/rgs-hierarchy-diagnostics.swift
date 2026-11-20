@@ -117,6 +117,17 @@ public enum RGSHierarchyDiagnostics {
         return lines.joined(separator: "\n")
     }
 
+    /// Explicit sorting-level diagnostics. No reports are produced merely
+    /// by constructing or decoding RGS nodes.
+    public static func sortingLevelReports(for nodes: [RGSNode]) -> [String] {
+        nodes.sorted {
+            if $0.codes.code != $1.codes.code {
+                return $0.codes.code < $1.codes.code
+            }
+            return $0.id < $1.id
+        }.compactMap(\.sortingLevelConsistencyReport)
+    }
+
     public static func print(
         _ output: Output,
         title: String = "RGS hierarchy diagnostics",

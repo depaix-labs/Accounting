@@ -110,6 +110,8 @@ let package = Package(
             dependencies: [
                 "AccountingParsers",
                 .product(name: "Syntax", package: "Syntax"),
+                .product(name: "SyntaxLSP", package: "Syntax"),
+                .product(name: "SyntaxStyling", package: "Syntax"),
                 .product(name: "Position", package: "Position"),
             ],
         ),
@@ -118,6 +120,8 @@ let package = Package(
             dependencies: [
                 "Accounting",
                 "AccountingParsers",
+                "AccountingSyntax",
+                .product(name: "SyntaxStyling", package: "Syntax"),
                 .product(name: "plate", package: "plate"),
                 .product(name: "Math", package: "Math"),
                 .product(name: "Primitives", package: "Primitives"),
@@ -164,6 +168,7 @@ let package = Package(
                 "Accounting",
                 "AccountingParsers",
                 "AccountingCompiler",
+                "AccountingSyntax",
                 .product(name: "plate", package: "plate"),
                 .product(name: "Primitives", package: "Primitives"),
                 .product(name: "Methods", package: "Methods"),
@@ -191,6 +196,7 @@ let package = Package(
                 "Accounting",
                 "AccountingCompiler",
                 "AccountingParsers",
+                "AccountingSyntax",
             ],
             path: "Sources/EntryCompilerLSP"
         ),
@@ -211,7 +217,9 @@ let package = Package(
             name: "AccountingSyntaxTests",
             dependencies: [
                 "AccountingSyntax",
+                "AccountingCompiler",
                 .product(name: "Syntax", package: "Syntax"),
+                .product(name: "SyntaxStyling", package: "Syntax"),
                 .product(name: "Testing", package: "Testing"),
             ],
             path: "Testing/AccountingSyntaxTests"

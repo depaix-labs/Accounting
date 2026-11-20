@@ -51,6 +51,20 @@ public struct EntryCompileDriver {
         public let transactions: TransactionStore
         public let entries: [Entry]
         public let resolved: [ResolvedEntry]
+
+        public init(
+            entities: EntityStore,
+            accounts: AccountStore,
+            transactions: TransactionStore,
+            entries: [Entry],
+            resolved: [ResolvedEntry]
+        ) {
+            self.entities = entities
+            self.accounts = accounts
+            self.transactions = transactions
+            self.entries = entries
+            self.resolved = resolved
+        }
     }
 
     public static func compile(

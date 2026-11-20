@@ -29,10 +29,10 @@ public struct CompiledChart: Sendable, Codable {
         self = indexed
     }
 
-    /// If `index` is nil, derive it from `nodes`; otherwise return self.
-    /// This variant also accepts enrichment (resolve parentId/l2Id) and returns a new CompiledChart with enriched nodes.
+    /// Derived indexes are reusable for ordinary lookups. Explicit strict or
+    /// enrichment requests must rebuild from authoritative nodes.
     public func ensuringIndex(enrichNodes: Bool = false, strict: Bool = false) throws -> CompiledChart {
-        if index != nil { return self }
+        if index != nil && !enrichNodes && !strict { return self }
 
         // Build index (optionally enrich nodes)
         let (builtIndex, enrichedNodes) = try RGSIndex.build(from: nodes, enrichNodes: enrichNodes, strict: strict)
@@ -41,6 +41,21 @@ public struct CompiledChart: Sendable, Codable {
         let finalNodes = enrichedNodes ?? nodes
 
         return CompiledChart(name: name, version: version, nodes: finalNodes, index: builtIndex)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, version, nodes, index
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let name = try values.decode(String.self, forKey: .name)
+        let version = try values.decode(ChartVersion.self, forKey: .version)
+        let nodes = try values.decode([RGSNode].self, forKey: .nodes)
+
+        // `index` is serialized for compatibility but remains derived data.
+        // Never trust a persisted cache over the decoded chart nodes.
+        self = try CompiledChart(name: name, version: version, nodes: nodes)
     }
 
     // /// If `index` is nil, derive it from `nodes`; otherwise return self.

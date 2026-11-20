@@ -177,17 +177,29 @@ enum RGSHierarchyCommand: BoundArgumentCommand {
             maxLevel: options.maxLevel
         )
 
-        guard options.showProblems,
-              !diagnostics.problems.isEmpty else {
-            return
+        if options.showProblems, !diagnostics.problems.isEmpty {
+            fputs("\n-- Problems --\n", stderr)
+
+            for problem in diagnostics.problems.sorted(by: { lhs, rhs in
+                lhs.description < rhs.description
+            }) {
+                fputs("  • \(problem.description)\n", stderr)
+            }
         }
 
-        fputs("\n-- Problems --\n", stderr)
+        // Sorting-level heuristics are explicitly requested diagnostics,
+        // not node-construction side effects or hard chart invariants.
+        if options.verbose {
+            let reports = RGSHierarchyDiagnostics.sortingLevelReports(
+                for: diagnostics.nodes
+            )
 
-        for problem in diagnostics.problems.sorted(by: { lhs, rhs in
-            lhs.description < rhs.description
-        }) {
-            fputs("  • \(problem.description)\n", stderr)
+            if !reports.isEmpty {
+                fputs("\n-- Sorting-level diagnostics --\n", stderr)
+                for report in reports {
+                    fputs("\(report)\n", stderr)
+                }
+            }
         }
     }
 }

@@ -92,15 +92,6 @@ public struct RGSNode: Sendable, Codable, JSONWritable {
             //         code: codes.code
             //     )
             // }
-            let implied = xl.sorting.xlsxImpliedLevel
-            if let report = xl.sorting.softConsistencyReport(
-                expectedLevel: level,
-                code: codes.code,
-                implied: implied
-            ) {
-                print(report)
-            }
-
             // 3) parentKey & l2Key presence (keep these)
             let segsCount = xl.sorting.segments.count
             if level > 1 && segsCount > 1 {

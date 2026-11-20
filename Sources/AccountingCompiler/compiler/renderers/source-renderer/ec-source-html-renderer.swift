@@ -1,6 +1,8 @@
 import Accounting
 import AccountingParsers
+import AccountingSyntax
 import Foundation
+import SyntaxStyling
 import HTML
 import CSS
 
@@ -19,11 +21,13 @@ extension ECSourceHTMLRenderer {
 
     public static func render(
         files: [ECSourceFile],
-        options: Options = .init()
+        options: Options = .init(),
+        theme: SyntaxTheme = EntryCompilerSyntax.sourceLightTheme
     ) -> String {
         let document = ECSourcePresenter.present(
             files: files,
-            options: options
+            options: options,
+            theme: theme
         )
 
         return render(
@@ -140,24 +144,55 @@ extension ECSourceHTMLRenderer {
             }
 
             HTML.span(["class": "src-line-text"]) {
-                renderFragments(line.fragments)
+                renderFragments(line)
             }
         }
     }
 
-    @HTMLBuilder
     static func renderFragments(
-        _ fragments: [ECSyntaxFragment]
+        _ line: ECSourcePresentedLine
     ) -> [any HTMLNode] {
-        for fragment in fragments {
-            if let cssClass = tokenClass(for: fragment.kind) {
-                HTML.span(["class": cssClass]) {
-                    HTML.text(fragment.text)
-                }
-            } else {
+        let fragments = line.styledFragments ?? line.fragments.map {
+            ECStyledSyntaxFragment(fragment: $0, style: .init())
+        }
+
+        return fragments.map { fragment -> any HTMLNode in
+            let cssClass = tokenClass(for: fragment.kind)
+            let style = styleAttribute(fragment.style)
+
+            guard cssClass != nil || style != nil else {
+                return HTML.text(fragment.text)
+            }
+
+            var attributes = HTMLAttribute()
+            if let cssClass {
+                attributes.merge(.class(cssClass))
+            }
+            if let style {
+                attributes.merge(["style": style])
+            }
+
+            return HTML.span(attributes) {
                 HTML.text(fragment.text)
             }
         }
+    }
+
+    /// HTML is a final interpretation of platform-neutral SyntaxStyle.
+    private static func styleAttribute(_ style: SyntaxStyle) -> String? {
+        var declarations: [String] = []
+        if let color = style.foreground {
+            declarations.append("color:rgb(\(color.red),\(color.green),\(color.blue))")
+        }
+        if let color = style.background {
+            declarations.append("background-color:rgb(\(color.red),\(color.green),\(color.blue))")
+        }
+        if let bold = style.bold { declarations.append("font-weight:\(bold ? "bold" : "normal")") }
+        if let italic = style.italic { declarations.append("font-style:\(italic ? "italic" : "normal")") }
+        if let underline = style.underline {
+            declarations.append("text-decoration:\(underline ? "underline" : "none")")
+        }
+        return declarations.isEmpty ? nil : declarations.joined(separator: ";")
     }
 
     static func tokenClass(

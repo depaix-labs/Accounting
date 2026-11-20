@@ -29,14 +29,19 @@ extension RGSAssembler {
         let manualAtEquity = seed[autoCloseTargets.eqId] ?? 0
         let hasManual = (manualAtNi != 0 || manualAtEquity != 0)
 
-        if ni != 0 && hasManual {
-            fputs(
-                "warning: auto-close NI overlay present but manual postings detected at "
-                    + "\(autoCloseTargets.niCode)=\(manualAtNi) and/or \(autoCloseTargets.eqCode)=\(manualAtEquity); "
-                    + "overlay suppressed for this period.\n",
-                stderr
-            )
-        }
+        let audit = AutoCloseAudit.evaluate(
+            ni: ni,
+            niNode: (
+                code: autoCloseTargets.niCode,
+                id: autoCloseTargets.niId
+            ),
+            equityNode: (
+                code: autoCloseTargets.eqCode,
+                id: autoCloseTargets.eqId
+            ),
+            manualAtNetIncome: manualAtNi,
+            manualAtEquity: manualAtEquity
+        )
 
         let rolled = AssemblerKernel.rollup(
             maps: maps,
@@ -54,7 +59,7 @@ extension RGSAssembler {
             )
         )
 
-        return try AssemblerKernel.makeBundle(
+        let bundle = try AssemblerKernel.makeBundle(
             chart: chart,
             index: index,
             maps: maps,
@@ -63,5 +68,7 @@ extension RGSAssembler {
             businessEntity: businessEntity,
             rolled: rolled
         )
+
+        return bundle.withAutoCloseAudit(audit)
     }
 }

@@ -9,6 +9,7 @@ enum AccountingTestFlowsSuite: TestFlowRegistry {
         exampleDepreciationWriterFlow,
         exampleVATIntegrationFlow,
         exampleDepreciationIntegrationFlow,
+        exampleAssetLifecycleFlow,
         nativeResolvedOutputIntegrationFlow,
     ]
 }

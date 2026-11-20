@@ -2,6 +2,8 @@ import Accounting
 import Foundation
 
 public enum PeriodAssembler {
+    /// Assemble a reporting period from validated, provenance-preserving
+    /// resolved postings. No trial-balance conversion occurs on this route.
     public static func assemble(
         shape: PeriodShape,
         anchor: Date,
@@ -16,16 +18,15 @@ public enum PeriodAssembler {
         entity: BusinessEntity = .vof,
         calendar: Calendar = periodCalendar()
     ) throws -> PeriodAssembleResult {
-        let chart = try buildChart(from: result)
-        let wins = resolveWindows(
+        let prepared = try prepareValidatedPeriod(
             shape: shape,
             anchor: anchor,
+            result: result,
             calendar: calendar
         )
 
-        let currentBundle = try buildCurrentBundle(
-            chart: chart,
-            wins: wins,
+        return try assemblePrepared(
+            prepared: prepared,
             anchor: anchor,
             result: result,
             cut: cut,
@@ -33,36 +34,54 @@ public enum PeriodAssembler {
             entity: entity,
             shape: shape,
             calendar: calendar
-        )
-
-        let current = PeriodAssembleResultPeriod(
-            range: wins.window,
-            bundle: currentBundle
-        )
-
-        let previous = try buildPreviousBundle(
-            chart: chart,
-            wins: wins,
-            anchor: anchor,
-            result: result,
-            cut: cut,
-            omslag: omslag,
-            entity: entity,
-            shape: shape,
-            calendar: calendar
-        ).map {
-            PeriodAssembleResultPeriod(
-                range: $0.range,
-                bundle: $0.bundle
-            )
-        }
-
-        return .init(
-            current: current,
-            previous: previous
         )
     }
 
+    /// Assemble from a previously validated chart and source projection.
+    /// Reuse this when the caller also needs the compiled chart.
+    static func assemblePrepared(
+        prepared: PreparedValidatedPeriod,
+        anchor: Date,
+        result: EntryCompileDriver.Result,
+        cut: AssembleCut,
+        omslag: OmslagMode,
+        entity: BusinessEntity,
+        shape: PeriodShape,
+        calendar: Calendar
+    ) throws -> PeriodAssembleResult {
+        let currentBundle = try buildValidatedCurrentBundle(
+            prepared: prepared,
+            anchor: anchor,
+            result: result,
+            cut: cut,
+            omslag: omslag,
+            entity: entity,
+            shape: shape,
+            calendar: calendar
+        )
+        let previous = try buildValidatedPreviousBundle(
+            prepared: prepared,
+            anchor: anchor,
+            result: result,
+            cut: cut,
+            omslag: omslag,
+            entity: entity,
+            shape: shape,
+            calendar: calendar
+        )
+
+        return PeriodAssembleResult(
+            current: PeriodAssembleResultPeriod(
+                range: prepared.windows.window,
+                bundle: currentBundle
+            ),
+            previous: previous,
+            sources: prepared.sources
+        )
+    }
+
+    /// Current and previous presentations may assemble concurrently while
+    /// sharing one immutable validated source projection and source offsets.
     public static func assemble_concurrent(
         shape: PeriodShape,
         anchor: Date,
@@ -77,16 +96,15 @@ public enum PeriodAssembler {
         entity: BusinessEntity = .vof,
         calendar: Calendar = periodCalendar()
     ) async throws -> PeriodAssembleResult {
-        let chart = try buildChart(from: result)
-        let wins = resolveWindows(
+        let prepared = try prepareValidatedPeriod(
             shape: shape,
             anchor: anchor,
+            result: result,
             calendar: calendar
         )
 
-        async let currentBundleTask: StatementBundle = try await buildCurrentBundleConcurrent(
-            chart: chart,
-            wins: wins,
+        async let currentBundleTask: StatementBundle = buildValidatedCurrentBundle(
+            prepared: prepared,
             anchor: anchor,
             result: result,
             cut: cut,
@@ -96,9 +114,8 @@ public enum PeriodAssembler {
             calendar: calendar
         )
 
-        async let previousTupleTask: (range: PeriodWindow, bundle: StatementBundle)? = try buildPreviousBundleConcurrent(
-            chart: chart,
-            wins: wins,
+        async let previousPeriodTask: PeriodAssembleResultPeriod? = buildValidatedPreviousBundle(
+            prepared: prepared,
             anchor: anchor,
             result: result,
             cut: cut,
@@ -109,23 +126,15 @@ public enum PeriodAssembler {
         )
 
         let currentBundle = try await currentBundleTask
-        let previousTuple = try await previousTupleTask
+        let previous = try await previousPeriodTask
 
-        let current = PeriodAssembleResultPeriod(
-            range: wins.window,
-            bundle: currentBundle
-        )
-
-        let previous = previousTuple.map {
-            PeriodAssembleResultPeriod(
-                range: $0.range,
-                bundle: $0.bundle
-            )
-        }
-
-        return .init(
-            current: current,
-            previous: previous
+        return PeriodAssembleResult(
+            current: PeriodAssembleResultPeriod(
+                range: prepared.windows.window,
+                bundle: currentBundle
+            ),
+            previous: previous,
+            sources: prepared.sources
         )
     }
 }

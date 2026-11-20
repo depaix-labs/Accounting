@@ -33,19 +33,6 @@ enum AssetsOverviewCommand: ParsedArgumentCommand {
             calendar: calendar
         )
 
-        print(
-            AssetViews.AssetsOverviewPrinter.renderText(
-                overview,
-                options: AssetsOverviewRenderOptions(
-                    diagnostics: options.diagnostics,
-                    showUnderlyingRows: true,
-                    showOnlyFlaggedUnderlyingRows: false,
-                    showZeroUnderlyingRows: false,
-                    diagnosticsOnlyForFlaggedRows: true
-                )
-            )
-        )
-
         let current = try NativeOutputBuilder.buildWindowOutput(
             result: context.result,
             windows: period.windows,
@@ -69,6 +56,25 @@ enum AssetsOverviewCommand: ParsedArgumentCommand {
             tolerance: 0
         )
 
+        if options.draft {
+            print("DRAFT: asset figures are not approved for filing.")
+        } else {
+            try reconciliation.assertReadyForFiling()
+        }
+
+        print(
+            AssetViews.AssetsOverviewPrinter.renderText(
+                overview,
+                options: AssetsOverviewRenderOptions(
+                    diagnostics: options.diagnostics,
+                    showUnderlyingRows: true,
+                    showOnlyFlaggedUnderlyingRows: false,
+                    showZeroUnderlyingRows: false,
+                    diagnosticsOnlyForFlaggedRows: true
+                )
+            )
+        )
+
         print("")
         print(
             AssetViews.AssetFilingReconciliationPrinter.renderText(
@@ -78,6 +84,12 @@ enum AssetsOverviewCommand: ParsedArgumentCommand {
 
         guard options.pdf.enabled else {
             return
+        }
+
+        guard !options.draft else {
+            throw EntryCompilerCLIError.validation(
+                "Draft asset reports cannot be exported as filing PDFs."
+            )
         }
 
         let html = StatementHTMLRenderer.renderAssetsOverviewHTML(

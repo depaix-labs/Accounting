@@ -346,6 +346,143 @@ extension AccountingTestFlowsSuite {
                     "nonfinite allocation rejected"
                 )
             }
+
+            Step("ownership timeline validates every effective-date boundary") {
+                let initial = Date(timeIntervalSince1970: 100)
+                let revised = Date(timeIntervalSince1970: 200)
+                let abolished = Date(timeIntervalSince1970: 300)
+
+                func owner(
+                    _ alias: String,
+                    initialPercent: Decimal,
+                    revisedPercent: Decimal,
+                    finalPercent: Decimal
+                ) throws -> (EntityKey, EntityDef) {
+                    let key = try EntityKey(
+                        class: "owner",
+                        family: "partner",
+                        alias: EntityAlias.parse(alias)
+                    )
+                    let equity = OwnerEquity(
+                        initial: OwnershipState(date: initial, percentage: initialPercent, details: nil),
+                        changes: [
+                            OwnershipChange(state: OwnershipState(
+                                date: revised, percentage: revisedPercent, details: nil
+                            )),
+                            OwnershipChange(state: OwnershipState(
+                                date: abolished, percentage: finalPercent, details: nil
+                            ))
+                        ]
+                    )
+                    return (key, EntityDef(key: key, ownerEquity: equity))
+                }
+
+                let levi = try owner("levi", initialPercent: 50, revisedPercent: 47, finalPercent: 50)
+                let casper = try owner("casper", initialPercent: 50, revisedPercent: 47, finalPercent: 50)
+                let reallocation = try owner("reallocation", initialPercent: 0, revisedPercent: 6, finalPercent: 0)
+                let valid = EntityStore(Dictionary(uniqueKeysWithValues: [levi, casper, reallocation]))
+                try valid.validateOwnershipTimeline(timeZone: .current)
+                try Expect.equal(
+                    valid.ownershipSlices(asOf: abolished).reduce(Decimal.zero) { $0 + $1.percent },
+                    Decimal(1),
+                    "zero reallocation restores full direct ownership"
+                )
+
+                let excess = try owner("levi", initialPercent: 50, revisedPercent: 48, finalPercent: 50)
+                let invalid = EntityStore(Dictionary(uniqueKeysWithValues: [excess, casper, reallocation]))
+                try Expect.true(
+                    ECModelFixtures.didThrow { try invalid.validateOwnershipTimeline(timeZone: .current) },
+                    "101% at an intermediate effective date must fail"
+                )
+
+                let zero = try owner("zero", initialPercent: 0, revisedPercent: 0, finalPercent: 0)
+                try Expect.true(
+                    ECModelFixtures.didThrow {
+                        try EntityStore(Dictionary(uniqueKeysWithValues: [zero])).validateOwnershipTimeline(timeZone: .current)
+                    },
+                    "an ownership history totaling zero must fail"
+                )
+
+                let tooLarge = try owner("large", initialPercent: 101, revisedPercent: 101, finalPercent: 101)
+                try Expect.true(
+                    ECModelFixtures.didThrow {
+                        try EntityStore(Dictionary(uniqueKeysWithValues: [tooLarge])).validateOwnershipTimeline(timeZone: .current)
+                    },
+                    "individual percentages above 100 must fail"
+                )
+
+                let ninetyNine = try owner("ninety_nine", initialPercent: 99, revisedPercent: 99, finalPercent: 99)
+                let one = try owner("one", initialPercent: 1, revisedPercent: 1, finalPercent: 1)
+                let tinyShare = EntityStore(Dictionary(uniqueKeysWithValues: [ninetyNine, one]))
+                try tinyShare.validateOwnershipTimeline(timeZone: .current)
+                let oneID = tinyShare.idIndex[one.0]
+                let oneSlice = tinyShare.ownershipSlices(asOf: revised).first { $0.entityId == oneID }
+                try Expect.equal(oneSlice?.percent, Decimal(1) / 100, "1.00 means 1%, not 100%")
+
+                try EntityStore([:]).validateOwnershipTimeline(timeZone: .current)
+            }
+
+            Step("ownership diagnostics respect configured timezone and DST") {
+                guard let timeZone = TimeZone(identifier: "Europe/Amsterdam"),
+                      let spring = parseLocalDateString("2026-03-29", timeZone: timeZone),
+                      let summer = parseLocalDateString("2026-07-01", timeZone: timeZone),
+                      let autumn = parseLocalDateString("2026-10-27", timeZone: timeZone)
+                else {
+                    try Expect.true(false, "Amsterdam timezone and local dates must resolve")
+                    return
+                }
+
+                func expectInvalidTotal(on date: Date, displayedAs expectedDate: String) throws {
+                    let key = try EntityKey(
+                        class: "owner",
+                        family: "partner",
+                        alias: EntityAlias.parse("timezone_test")
+                    )
+                    let equity = OwnerEquity(
+                        initial: OwnershipState(date: date, percentage: 95, details: nil),
+                        changes: []
+                    )
+                    let store = EntityStore([
+                        key: EntityDef(key: key, ownerEquity: equity)
+                    ])
+
+                    do {
+                        try store.validateOwnershipTimeline(timeZone: timeZone)
+                        try Expect.true(false, "95% ownership must be rejected")
+                    } catch let error as OwnershipTimelineValidationError {
+                        try Expect.equal(
+                            error.errorDescription,
+                            "Total ownership at \(expectedDate) is 95%; expected exactly 100.00%.",
+                            "ownership error uses project-local calendar date"
+                        )
+                    }
+                }
+
+                try expectInvalidTotal(on: spring, displayedAs: "2026-03-29")
+                try expectInvalidTotal(on: summer, displayedAs: "2026-07-01")
+                try expectInvalidTotal(on: autumn, displayedAs: "2026-10-27")
+
+                try Expect.equal(
+                    OwnershipTimelineValidationError.invalidPercentage(
+                        entity: "owner.test", date: autumn, actual: 101, timeZone: timeZone
+                    ).errorDescription,
+                    "Ownership percentage for owner.test at 2026-10-27 is 101; expected 0...100."
+                )
+
+                try Expect.equal(
+                    OwnershipTimelineValidationError.duplicateChangeDate(
+                        entity: "owner.test", date: autumn, timeZone: timeZone
+                    ).errorDescription,
+                    "Duplicate ownership change for owner.test at 2026-10-27."
+                )
+
+                try Expect.equal(
+                    OwnershipTimelineValidationError.changeNotAfterInitial(
+                        entity: "owner.test", date: autumn, initial: spring, timeZone: timeZone
+                    ).errorDescription,
+                    "Ownership change for owner.test at 2026-10-27 is not after initial date 2026-03-29."
+                )
+            }
         }
     }
 }

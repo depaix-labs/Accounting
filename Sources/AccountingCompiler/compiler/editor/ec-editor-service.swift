@@ -17,13 +17,13 @@ public enum ECEditorService {
     public static func semanticTokens(
         source: String,
         flavor: EntryCompilerLexingFlavor
-    ) -> [ECSemanticToken] {
+    ) throws -> [ECSemanticToken] {
         let analysis = analyzeDocument(
             source: source,
             flavor: flavor
         )
 
-        return ECDocumentAnalyzer.semanticTokens(
+        return try ECDocumentAnalyzer.semanticTokens(
             from: analysis
         )
     }

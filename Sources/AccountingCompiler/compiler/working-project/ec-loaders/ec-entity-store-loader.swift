@@ -42,7 +42,9 @@ public enum EntityStoreLoader {
                 }
         }
 
-        return builder.freeze()
+        let store = builder.freeze()
+        try store.validateOwnershipTimeline(timeZone: settings.entry.defaultTimezone)
+        return store
     }
 
     public static func load(
@@ -108,7 +110,9 @@ public enum EntityStoreLoader {
             }
         }
 
-        return builder.freeze()
+        let store = builder.freeze()
+        try store.validateOwnershipTimeline(timeZone: settings.entry.defaultTimezone)
+        return store
     }
 }
 

@@ -75,6 +75,11 @@ extension VATCommand {
             let statusQuarter = status.quarters.first {
                 $0.period == targetPeriod
             }
+            if !options.draft && statusQuarter == nil {
+                throw EntryCompilerCLIError.validation(
+                    "VAT filing quarter is absent from the status reconciliation."
+                )
+            }
 
             let overview = try RGSAssembler.vatOverview(
                 "BTW / Taxes Overview – \(periodLabel)",
@@ -96,15 +101,22 @@ extension VATCommand {
                 businessEntity: .vof
             )
 
-            print(
-                report.renderText(
-                    .init(
-                        title: report.title,
-                        showSourceRows: !options.hideSourceRows,
-                        fractionDigits: 2
-                    )
+            let text = report.renderText(
+                .init(
+                    title: report.title,
+                    showSourceRows: !options.hideSourceRows,
+                    fractionDigits: 2
                 )
             )
+
+            if options.draft {
+                print("DRAFT: VAT figures are not approved for filing.")
+                print(text)
+                return
+            }
+
+            try report.assertReadyForFiling()
+            print(text)
         }
     }
 }

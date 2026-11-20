@@ -62,6 +62,157 @@ extension AccountingTestFlowsSuite {
                 try resolved[1].assertBalancing()
             }
 
+            Step("resolves local posting codes without losing their separate identity") {
+                let chart = try CompiledChart(
+                    name: "posting-binding-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: ECModelFixtures.postingNodes()
+                )
+                let bankA = try AccountKey("10201")
+                let bankB = try AccountKey("10202")
+                let catalog = try LocalAccountCatalog(
+                    accounts: [
+                        try LocalAccount(key: bankA, rgsIdentifier: "BLimBanRba"),
+                        try LocalAccount(key: bankB, rgsIdentifier: "BLimBanRba")
+                    ],
+                    chart: chart
+                )
+                let source = """
+                entry {
+                    id = 9233
+                    date = 2026-08-15
+
+                    for (bank_fixture) in (10201) {
+                        debit = 1.00
+                    }
+                    for (bank_fixture) in (10202) {
+                        debit = 2.00
+                    }
+                    for (revenue_fixture) in (WOmzNodOdh) {
+                        credit = 3.00
+                    }
+                }
+                """
+                let entries = try ECModelFixtures.parseEntries(source)
+                let store = try AccountStore(chart: chart)
+                let resolved = try EntryResolutionPass.resolve(
+                    entries,
+                    entities: ECModelFixtures.semanticEntityStore(),
+                    accounts: store,
+                    transactions: ECModelFixtures.semanticTransactionStore(),
+                    settings: ECModelFixtures.parseSettings(),
+                    localAccounts: catalog
+                )
+                try Expect.equal(resolved.count, 1, "one entry resolved")
+                let lines = resolved[0].lines
+                try Expect.equal(
+                    lines.map(\.account.code),
+                    ["BLimBanRba", "BLimBanRba", "WOmzNodOdh"],
+                    "existing RGS classification survives local-account resolution"
+                )
+                try Expect.equal(
+                    lines.map { $0.localAccount?.code },
+                    ["10201", "10202", nil],
+                    "distinct project-local identities survive resolution"
+                )
+                try Expect.equal(
+                    trialBalance(resolved).first { $0.accountCode == "BLimBanRba" }?.debit,
+                    Decimal(3),
+                    "RGS-facing trial balance still aggregates both local accounts"
+                )
+                let serialized = try JSONEncoder().encode(lines[0])
+                let decoded = try JSONDecoder().decode(ResolvedLine.self, from: serialized)
+                try Expect.equal(
+                    decoded.localAccount?.code,
+                    "10201",
+                    "posting identity survives Codable round-trip"
+                )
+                let withoutCatalog = ECModelFixtures.didThrow {
+                    _ = try EntryResolutionPass.resolve(
+                        entries,
+                        entities: ECModelFixtures.semanticEntityStore(),
+                        accounts: store,
+                        transactions: ECModelFixtures.semanticTransactionStore(),
+                        settings: ECModelFixtures.parseSettings()
+                    )
+                }
+                try Expect.true(
+                    withoutCatalog,
+                    "local numeric codes remain unavailable unless a catalog is supplied"
+                )
+                let chartWithDifferentIDs = try CompiledChart(
+                    name: "other-chart-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: [
+                        try ECModelFixtures.makePostingNode(
+                            id: 999, code: "BLimBanRba", direction: .debit
+                        ),
+                        try ECModelFixtures.makePostingNode(
+                            id: 2, code: "BLimKasKas", direction: .debit
+                        ),
+                        try ECModelFixtures.makePostingNode(
+                            id: 3, code: "WOmzNodOdh", direction: .credit
+                        )
+                    ]
+                )
+                let incompatible = ECModelFixtures.didThrow {
+                    _ = try EntryResolutionPass.resolve(
+                        entries,
+                        entities: ECModelFixtures.semanticEntityStore(),
+                        accounts: AccountStore(chart: chartWithDifferentIDs),
+                        transactions: ECModelFixtures.semanticTransactionStore(),
+                        settings: ECModelFixtures.parseSettings(),
+                        localAccounts: catalog
+                    )
+                }
+                try Expect.true(incompatible, "catalog and active RGS chart cannot disagree")
+            }
+
+            Step("classifies RGS identifiers distinctly from numeric codes and paths") {
+                let canonical = try ECModelFixtures.parseEntries(
+                    ECModelFixtures.validResolutionEntrySource
+                )
+                try Expect.equal(
+                    canonical.flatMap(\.lines).map(\.account),
+                    [
+                        .identifier("BLimBanRba"),
+                        .identifier("WOmzNodOdh"),
+                        .identifier("BLimKasKas"),
+                        .identifier("WOmzNodOdh"),
+                    ],
+                    "existing RGS posting syntax produces identifier references"
+                )
+
+                let variants = try ECModelFixtures.parseEntries(
+                    """
+                    entry {
+                        id = 9222
+                        date = 2026-08-15
+
+                        for (bank_fixture) in (10201) { debit = 1.00 }
+                        for (bank_fixture) in (assets.bank.main) { debit = 1.00 }
+                        for (revenue_fixture) in (account WOmzNodOdh) { credit = 1.00 }
+                        for (bank_fixture) in account(BLimBanRba) { debit = 1.00 }
+                    }
+                    """
+                )
+                try Expect.equal(
+                    variants.count,
+                    1,
+                    "parser retains the one-entry fixture"
+                )
+                try Expect.equal(
+                    variants[0].lines.map(\.account),
+                    [
+                        .code("10201"),
+                        .path(["assets", "bank", "main"]),
+                        .identifier("WOmzNodOdh"),
+                        .identifier("BLimBanRba"),
+                    ],
+                    "account-reference representations follow their syntax namespaces"
+                )
+            }
+
             Step("accepts balance entity with bank account") {
                 let resolved = try ECModelFixtures.resolveEntries(
                     """
@@ -343,6 +494,11 @@ extension AccountingTestFlowsSuite {
                     1,
                     "non-strict duplicate reference produces one index key"
                 )
+                try Expect.equal(
+                    index.byReference["REF-DUP"] ?? -1,
+                    105,
+                    "non-strict duplicate reference keeps the first node"
+                )
 
                 let strictThrew = ECModelFixtures.didThrow {
                     _ = try RGSIndex.build(
@@ -357,6 +513,306 @@ extension AccountingTestFlowsSuite {
                 try Expect.true(
                     strictThrew,
                     "strict duplicate reference should fail"
+                )
+            }
+
+            Step("rejects duplicate numeric node IDs even with distinct identifiers") {
+                let first = try ECModelFixtures.makeIndexedNode(
+                    id: 107,
+                    code: "WDuplicateIDOne",
+                    sortKey: "W.G"
+                )
+                let second = try ECModelFixtures.makeIndexedNode(
+                    id: 107,
+                    code: "WDuplicateIDTwo",
+                    sortKey: "W.H"
+                )
+
+                for strict in [false, true] {
+                    let threwExpectedError: Bool
+                    do {
+                        _ = try RGSIndex.build(from: [first, second], strict: strict)
+                        threwExpectedError = false
+                    } catch CompiledChartIndexError.duplicateNodeID(
+                        let id, let firstCode, let duplicateCode
+                    ) {
+                        threwExpectedError = id == 107
+                            && firstCode == "WDuplicateIDOne"
+                            && duplicateCode == "WDuplicateIDTwo"
+                    } catch {
+                        threwExpectedError = false
+                    }
+                    try Expect.true(
+                        threwExpectedError,
+                        "duplicate node IDs must produce a typed error in strict=\(strict)"
+                    )
+                }
+            }
+
+            Step("rebuilds stale serialized chart indexes from authoritative nodes") {
+                let node = try ECModelFixtures.makeIndexedNode(
+                    id: 108,
+                    code: "WCachedIdentity",
+                    sortKey: "W.I"
+                )
+                // The store's hierarchy gate requires the level-1 RGS parent.
+                // Include it so this test isolates persisted-index reconstruction.
+                let root = try ECModelFixtures.makePostingNode(
+                    id: 109,
+                    code: "W",
+                    direction: .credit
+                )
+                let chart = try CompiledChart(
+                    name: "cached-index-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: [root, node]
+                )
+                let encoded = try JSONEncoder().encode(chart)
+                var object = try JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+                var cachedIndex = object["index"] as! [String: Any]
+                cachedIndex["byIdentifier"] = ["WCorruptCachedIdentity": 999]
+                object["index"] = cachedIndex
+                let staleData = try JSONSerialization.data(withJSONObject: object)
+                let decoded = try JSONDecoder().decode(CompiledChart.self, from: staleData)
+
+                try Expect.equal(
+                    decoded.index?.byIdentifier["WCachedIdentity"] ?? -1,
+                    108,
+                    "decoding derives a canonical index from nodes"
+                )
+                try Expect.true(
+                    decoded.index?.byIdentifier["WCorruptCachedIdentity"] == nil,
+                    "stale cached identifiers must not survive decoding"
+                )
+                let decodedStore = try AccountStore(chart: decoded)
+                try Expect.equal(
+                    try decodedStore.resolve(.identifier("WCachedIdentity"), at: nil).id,
+                    108,
+                    "chart-backed AccountStore uses the corrected identifier mapping"
+                )
+
+                object.removeValue(forKey: "index")
+                let noCacheData = try JSONSerialization.data(withJSONObject: object)
+                let noCache = try JSONDecoder().decode(CompiledChart.self, from: noCacheData)
+                try Expect.equal(
+                    noCache.index?.byIdentifier["WCachedIdentity"] ?? -1,
+                    108,
+                    "legacy charts without cached indexes remain supported"
+                )
+            }
+
+            Step("AccountStore validates identity and preserves lookup boundaries") {
+                let node = try ECModelFixtures.makePostingNode(
+                    id: 121,
+                    code: "WAccountStoreIdentity",
+                    direction: .credit
+                )
+                let chart = try CompiledChart(
+                    name: "account-store-identity-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: [node]
+                )
+                let indexed = try AccountStore(chart: chart)
+                let nodesOnly = try AccountStore(nodes: [node])
+
+                try Expect.equal(
+                    try indexed.resolve(.code("WAccountStoreIdentity"), at: nil).id,
+                    121,
+                    "chart posting-code lookup"
+                )
+                try Expect.equal(
+                    try indexed.resolve(.identifier("WAccountStoreIdentity"), at: nil).id,
+                    121,
+                    "chart RGS-identifier lookup"
+                )
+                try Expect.equal(
+                    try indexed.resolve(.path(["WAccountStoreIdentity"]), at: nil).id,
+                    121,
+                    "legacy single-segment path lookup"
+                )
+                try Expect.equal(
+                    try nodesOnly.resolve(.code("WAccountStoreIdentity"), at: nil).id,
+                    121,
+                    "nodes-only posting-code lookup"
+                )
+                try Expect.true(
+                    ECModelFixtures.didThrow {
+                        _ = try nodesOnly.resolve(.identifier("WAccountStoreIdentity"), at: nil)
+                    },
+                    "nodes-only stores must not imply identifier-index availability"
+                )
+
+                let duplicateID = try ECModelFixtures.makePostingNode(
+                    id: 121,
+                    code: "WAccountStoreDuplicateID",
+                    direction: .credit
+                )
+                let typedDuplicateID: Bool
+                do {
+                    _ = try AccountStore(nodes: [node, duplicateID])
+                    typedDuplicateID = false
+                } catch CompiledChartIndexError.duplicateNodeID(let id, _, _) {
+                    typedDuplicateID = id == 121
+                } catch {
+                    typedDuplicateID = false
+                }
+                try Expect.true(
+                    typedDuplicateID,
+                    "nodes-only stores must reject duplicate numeric node IDs"
+                )
+            }
+
+            Step("keeps local account identities distinct from RGS taxonomy bindings") {
+                let node = try ECModelFixtures.makePostingNode(
+                    id: 131,
+                    code: "BLimBanRba",
+                    direction: .debit
+                )
+                let chart = try CompiledChart(
+                    name: "local-account-contract-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: [node]
+                )
+                let firstKey = try AccountKey("10201")
+                let secondKey = try AccountKey("10202")
+                let first = try LocalAccount(
+                    key: firstKey,
+                    rgsIdentifier: "BLimBanRba",
+                    label: "Main bank"
+                )
+                let second = try LocalAccount(
+                    key: secondKey,
+                    rgsIdentifier: "BLimBanRba"
+                )
+                let catalog = try LocalAccountCatalog(
+                    accounts: [first, second],
+                    chart: chart
+                )
+                try Expect.equal(
+                    catalog.count,
+                    2,
+                    "two local identities can bind to one RGS concept"
+                )
+                try Expect.equal(
+                    catalog.account(for: firstKey)?.label,
+                    "Main bank",
+                    "local presentation metadata survives binding"
+                )
+                try Expect.equal(
+                    catalog.rgsNode(for: firstKey)?.id,
+                    131,
+                    "first local code resolves to the RGS concept"
+                )
+                try Expect.equal(
+                    catalog.rgsNode(for: secondKey)?.id,
+                    131,
+                    "second local code resolves independently to the same RGS concept"
+                )
+
+                let duplicateRejected: Bool
+                do {
+                    _ = try LocalAccountCatalog(accounts: [first, first], chart: chart)
+                    duplicateRejected = false
+                } catch LocalAccountError.duplicateCode(let code) {
+                    duplicateRejected = code == "10201"
+                } catch {
+                    duplicateRejected = false
+                }
+                try Expect.true(duplicateRejected, "duplicate local identities are rejected")
+
+                let unknownRejected: Bool
+                do {
+                    let unknown = try LocalAccount(
+                        key: firstKey, rgsIdentifier: "BUnknownRGS"
+                    )
+                    _ = try LocalAccountCatalog(accounts: [unknown], chart: chart)
+                    unknownRejected = false
+                } catch LocalAccountError.unknownRGSIdentifier(let code, let identifier) {
+                    unknownRejected = code == "10201" && identifier == "BUnknownRGS"
+                } catch {
+                    unknownRejected = false
+                }
+                try Expect.true(unknownRejected, "missing RGS binding produces a typed error")
+
+                try Expect.true(
+                    ECModelFixtures.didThrow {
+                        _ = try LocalAccount(key: firstKey, rgsIdentifier: " ")
+                    },
+                    "local account cannot have a blank RGS target"
+                )
+                let malformed = Data(#"{"key":{"code":"10201"},"rgsIdentifier":""}"#.utf8)
+                try Expect.true(
+                    ECModelFixtures.didThrow {
+                        _ = try JSONDecoder().decode(LocalAccount.self, from: malformed)
+                    },
+                    "Codable cannot bypass local-account binding invariants"
+                )
+
+                let nonPostable = try RGSNode(
+                    id: 132,
+                    codes: .init(code: "BLim"),
+                    labels: .init(short: "Liquid assets", long: "Liquid assets"),
+                    direction: nil,
+                    level: 1,
+                    temporality: .instant,
+                    side: .balance
+                )
+                let nonPostableChart = try CompiledChart(
+                    name: "non-postable-local-account-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: [nonPostable]
+                )
+                let nonPostableRejected: Bool
+                do {
+                    let account = try LocalAccount(
+                        key: firstKey, rgsIdentifier: "BLim"
+                    )
+                    _ = try LocalAccountCatalog(
+                        accounts: [account], chart: nonPostableChart
+                    )
+                    nonPostableRejected = false
+                } catch LocalAccountError.nonPostableRGSIdentifier(let code, let identifier) {
+                    nonPostableRejected = code == "10201" && identifier == "BLim"
+                } catch {
+                    nonPostableRejected = false
+                }
+                try Expect.true(nonPostableRejected, "non-postable RGS targets are rejected")
+
+                // No implicit compiler/AccountStore installation in this pass.
+                let existingStore = try AccountStore(chart: chart)
+                try Expect.true(
+                    ECModelFixtures.didThrow {
+                        _ = try existingStore.resolve(.code("10201"), at: nil)
+                    },
+                    "building a catalog does not implicitly install local codes"
+                )
+            }
+
+            Step("enriches an already indexed chart on explicit request") {
+                let root = try ECModelFixtures.makeIndexedNode(
+                    id: 113,
+                    code: "WIndexedRoot",
+                    sortKey: "W"
+                )
+                let child = try ECModelFixtures.makeIndexedNode(
+                    id: 114,
+                    code: "WIndexedChild",
+                    sortKey: "W.J"
+                )
+                let chart = try CompiledChart(
+                    name: "indexed-enrichment-fixture",
+                    version: .init(major: 3, minor: 8),
+                    nodes: [root, child]
+                )
+                try Expect.true(
+                    chart.nodes.first { $0.id == 114 }?.xlsx?.links.parentId == nil,
+                    "initial indexed chart has no resolved parent"
+                )
+                let enriched = try chart.ensuringIndex(enrichNodes: true, strict: true)
+                try Expect.equal(
+                    enriched.nodes.first { $0.id == 114 }?.xlsx?.links.parentId ?? -1,
+                    113,
+                    "explicit enrichment must run despite a cached index"
                 )
             }
 

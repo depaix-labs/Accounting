@@ -2,6 +2,9 @@ import Accounting
 import Foundation
 
 public extension NativeOutputBuilder {
+    /// Compile the explicitly supplied reporting window through validated
+    /// source postings rather than reconstructing trial balances.
+    /// Existing consumers continue receiving NativeCompileOutput.
     static func buildWindowOutput(
         result: EntryCompileDriver.Result,
         windows: PeriodWindows,
@@ -12,11 +15,14 @@ public extension NativeOutputBuilder {
         entity: BusinessEntity = .vof,
         calendar: Calendar = periodCalendar()
     ) throws -> NativeCompileOutput {
-        let chart = try PeriodAssembler.buildChart(from: result)
+        let prepared = try PeriodAssembler.prepareValidatedPeriod(
+            windows: windows,
+            result: result,
+            calendar: calendar
+        )
 
-        let bundle = try PeriodAssembler.buildCurrentBundle(
-            chart: chart,
-            wins: windows,
+        let bundle = try PeriodAssembler.buildValidatedCurrentBundle(
+            prepared: prepared,
             anchor: anchor,
             result: result,
             cut: cut,
@@ -26,9 +32,9 @@ public extension NativeOutputBuilder {
             calendar: calendar
         )
 
-        return .init(
+        return NativeCompileOutput(
             result: result,
-            chart: chart,
+            chart: prepared.chart,
             bundle: bundle
         )
     }

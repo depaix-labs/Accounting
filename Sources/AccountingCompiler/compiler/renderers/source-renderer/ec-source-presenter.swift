@@ -1,11 +1,14 @@
 import Accounting
 import AccountingParsers
+import AccountingSyntax
 import Foundation
+import SyntaxStyling
 
 public enum ECSourcePresenter {
     public static func present(
         files: [ECSourceFile],
-        options: ECSourcePresentationOptions = .init()
+        options: ECSourcePresentationOptions = .init(),
+        theme: SyntaxTheme
     ) -> ECSourceDocument {
         ECSourceDocument(
             title: options.title,
@@ -13,7 +16,8 @@ public enum ECSourcePresenter {
             files: files.map {
                 presentedFile(
                     from: $0,
-                    options: options
+                    options: options,
+                    theme: theme
                 )
             }
         )
@@ -21,7 +25,8 @@ public enum ECSourcePresenter {
 
     private static func presentedFile(
         from file: ECSourceFile,
-        options: ECSourcePresentationOptions
+        options: ECSourcePresentationOptions,
+        theme: SyntaxTheme
     ) -> ECSourcePresentedFile {
         ECSourcePresentedFile(
             relativePath: file.relativePath,
@@ -29,7 +34,8 @@ public enum ECSourcePresenter {
             blocks: file.blocks.map {
                 presentedBlock(
                     from: $0,
-                    options: options
+                    options: options,
+                    theme: theme
                 )
             }
         )
@@ -37,11 +43,13 @@ public enum ECSourcePresenter {
 
     private static func presentedBlock(
         from block: ECSourceBlock,
-        options: ECSourcePresentationOptions
+        options: ECSourcePresentationOptions,
+        theme: SyntaxTheme
     ) -> ECSourcePresentedBlock {
-        let lines = presentedLines(
+        let presentation = presentedLines(
             from: block,
-            options: options
+            options: options,
+            theme: theme
         )
 
         let lineRange = "\(block.renderStartLine)–\(block.endLine)"
@@ -50,11 +58,14 @@ public enum ECSourcePresenter {
         if let summary = block.summary?.compactDescription {
             caption += " · \(summary)"
         }
+        if let failure = presentation.syntaxFailure {
+            caption += " · syntax highlighting unavailable: \(failure)"
+        }
 
         return ECSourcePresentedBlock(
             kind: block.kind,
             caption: caption,
-            lines: lines,
+            lines: presentation.lines,
             renderStartLine: block.renderStartLine,
             semanticStartLine: block.semanticStartLine,
             endLine: block.endLine,
@@ -64,35 +75,36 @@ public enum ECSourcePresenter {
 
     private static func presentedLines(
         from block: ECSourceBlock,
-        options: ECSourcePresentationOptions
-    ) -> [ECSourcePresentedLine] {
+        options: ECSourcePresentationOptions,
+        theme: SyntaxTheme
+    ) -> (lines: [ECSourcePresentedLine], syntaxFailure: String?) {
         if options.syntaxHighlighting {
-            return ECSyntaxHighlighter.highlight(
-                source: block.source,
-                flavor: lexingFlavor(for: block.kind),
-                startingAtLine: block.renderStartLine
-            ).map { line in
-                ECSourcePresentedLine(
-                    number: line.number,
-                    fragments: line.fragments
+            do {
+                let styled = try EntryCompilerSyntax.styledLines(
+                    source: block.source,
+                    flavor: lexingFlavor(for: block.kind),
+                    startingAtLine: block.renderStartLine,
+                    theme: theme
                 )
+                return (styled.map { line in
+                    ECSourcePresentedLine(
+                        number: line.number,
+                        fragments: line.fragments.map(\.fragment),
+                        styledFragments: line.fragments
+                    )
+                }, nil)
+            } catch {
+                return (plainLines(from: block), String(describing: error))
             }
         }
+        return (plainLines(from: block), nil)
+    }
 
-        let lineTexts = block.source.split(
-            separator: "\n",
-            omittingEmptySubsequences: false
-        ).map(String.init)
-
-        return lineTexts.enumerated().map { offset, text in
+    private static func plainLines(from block: ECSourceBlock) -> [ECSourcePresentedLine] {
+        block.source.components(separatedBy: "\n").enumerated().map { offset, text in
             ECSourcePresentedLine(
                 number: block.renderStartLine + offset,
-                fragments: [
-                    ECSyntaxFragment(
-                        text: text,
-                        kind: .plain
-                    )
-                ]
+                fragments: [ECSyntaxFragment(text: text, kind: .plain)]
             )
         }
     }

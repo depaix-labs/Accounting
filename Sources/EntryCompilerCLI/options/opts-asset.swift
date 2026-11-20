@@ -10,6 +10,7 @@ struct AssetsOverviewOptions: Sendable, ArgumentParsed {
     var pdf: PDFOptions
     var diagnostics: Bool
     var trace: Bool
+    var draft: Bool
 
     init(
         arguments: Options
@@ -21,6 +22,7 @@ struct AssetsOverviewOptions: Sendable, ArgumentParsed {
         self.pdf = arguments.pdf
         self.diagnostics = arguments.diagnostics
         self.trace = arguments.trace
+        self.draft = arguments.draft
     }
 
     struct Options: ArgumentGroup {
@@ -38,6 +40,9 @@ struct AssetsOverviewOptions: Sendable, ArgumentParsed {
 
         @Flag("trace")
         var trace: Bool
+
+        @Flag("draft")
+        var draft: Bool
 
         init() {}
     }

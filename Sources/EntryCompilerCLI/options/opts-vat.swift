@@ -163,6 +163,7 @@ struct VATFilingOptions: Sendable, ArgumentParsed {
     var trace: Bool
     var tolerance: Decimal
     var hideSourceRows: Bool
+    var draft: Bool
 
     init(
         arguments: Options
@@ -174,6 +175,7 @@ struct VATFilingOptions: Sendable, ArgumentParsed {
         self.trace = arguments.trace
         self.tolerance = arguments.tolerance
         self.hideSourceRows = arguments.hideSourceRows
+        self.draft = arguments.draft
     }
 
     struct Options: ArgumentGroup {
@@ -194,6 +196,9 @@ struct VATFilingOptions: Sendable, ArgumentParsed {
 
         @Flag("hide-source-rows")
         var hideSourceRows: Bool
+
+        @Flag("draft")
+        var draft: Bool
 
         init() {}
     }

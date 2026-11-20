@@ -3,7 +3,10 @@ import Position
 
 public struct ResolvedLine: Hashable, Codable, Sendable {
     public let entity: EntityKey
+    /// RGS classification key used by existing statements, VAT, and trial balances.
     public let account: AccountKey
+    /// Distinct project-local posting identity, when the source was resolved through a local catalog.
+    public let localAccount: AccountKey?
     public let direction: Direction
     public let amount: Decimal
     public let adjustment: InventoryAdjustment?
@@ -16,11 +19,13 @@ public struct ResolvedLine: Hashable, Codable, Sendable {
         direction: Direction,
         amount: Decimal,
         adjustment: InventoryAdjustment?,
+        localAccount: AccountKey? = nil,
 
         location: Position? = nil
     ) {
         self.entity = entity
         self.account = account
+        self.localAccount = localAccount
         self.direction = direction
         self.amount = amount
         self.adjustment = adjustment

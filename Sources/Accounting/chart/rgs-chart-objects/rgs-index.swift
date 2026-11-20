@@ -32,6 +32,7 @@ public extension RGSIndex {
         strict: Bool = false
     ) throws -> (RGSIndex, [RGSNode]?) {
         var byIdentifier: [String:Int] = [:]
+        var identifierByID: [Int: String] = [:]
         var bySortKey: [String:Int] = [:]
         var labelByKey: [String:String] = [:]   // will also hold prefix labels
         var byReference: [String:Int] = [:]
@@ -49,6 +50,13 @@ public extension RGSIndex {
 
         // First pass: maps
         for n in nodes {
+            // Numeric IDs are also primary keys throughout assembler/account maps.
+            // Reject collisions before they can reach Dictionary(uniqueKeysWithValues:).
+            if let first = identifierByID.updateValue(n.codes.code, forKey: n.id) {
+                throw CompiledChartIndexError.duplicateNodeID(
+                    id: n.id, first: first, duplicate: n.codes.code
+                )
+            }
             // identifier -> id (fail on duplicates regardless)
             if byIdentifier.updateValue(n.id, forKey: n.codes.code) != nil {
                 throw CompiledChartIndexError.duplicateIdentifier(n.codes.code)
@@ -79,9 +87,11 @@ public extension RGSIndex {
 
                 // reference
                 if let ref = x.reference, !ref.isEmpty {
-                    if byReference.updateValue(n.id, forKey: ref) != nil {
+                    if byReference[ref] != nil {
                         if strict { throw CompiledChartIndexError.duplicateReference(ref) }
-                        // else: keep first
+                        // Non-strict mode preserves the first reference mapping.
+                    } else {
+                        byReference[ref] = n.id
                     }
                 }
             }

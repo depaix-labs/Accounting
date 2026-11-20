@@ -1,6 +1,8 @@
 import Accounting
 import AccountingParsers
+import AccountingSyntax
 import Foundation
+import SyntaxStyling
 import Terminal
 
 public enum ECSourceTerminalRenderer {}
@@ -10,11 +12,13 @@ extension ECSourceTerminalRenderer {
 
     public static func render(
         files: [ECSourceFile],
-        options: Options = .init()
+        options: Options = .init(),
+        theme: SyntaxTheme = EntryCompilerSyntax.sourceDarkTheme
     ) -> String {
         let document = ECSourcePresenter.present(
             files: files,
-            options: options
+            options: options,
+            theme: theme
         )
 
         return render(
@@ -45,7 +49,7 @@ extension ECSourceTerminalRenderer {
         showLineNumbers: Bool,
         lineNumberWidth: Int
     ) -> String {
-        let text = renderedFragments(line.fragments)
+        let text = renderedFragments(line)
 
         guard showLineNumbers else {
             return text
@@ -62,49 +66,26 @@ extension ECSourceTerminalRenderer {
     }
 
     private static func renderedFragments(
-        _ fragments: [ECSyntaxFragment]
+        _ line: ECSourcePresentedLine
     ) -> String {
-        fragments.map { fragment in
-            styledFragment(fragment.text, kind: fragment.kind)
-        }
-        .joined()
+        guard let fragments = line.styledFragments else { return line.text }
+        return fragments.map { styledFragment($0.text, style: $0.style) }.joined()
     }
 
-    private static func styledFragment(
-        _ text: String,
-        kind: ECSyntaxKind
-    ) -> String {
-        switch kind {
-        case .plain:
-            return text
-
-        case .keyword:
-            return text.ansi(.magenta, .bold)
-
-        case .identifier:
-            return text
-
-        case .account:
-            return text.ansi(.yellow, .bold)
-
-        case .entity:
-            return text.ansi(.brightYellow, .bold)
-
-        case .number:
-            return text.ansi(.yellow)
-
-        case .string:
-            return text.ansi(.green)
-
-        case .date:
-            return text.ansi(.cyan)
-
-        case .punctuation:
-            return text.ansi(.brightBlack)
-
-        case .comment:
-            return text.ansi(.brightBlack, .italic)
+    /// ANSI is introduced only when a terminal renderer consumes SyntaxStyle.
+    private static func styledFragment(_ text: String, style: SyntaxStyle) -> String {
+        var codes: [String] = []
+        if let foreground = style.foreground {
+            codes.append("38;2;\(foreground.red);\(foreground.green);\(foreground.blue)")
         }
+        if let background = style.background {
+            codes.append("48;2;\(background.red);\(background.green);\(background.blue)")
+        }
+        if let bold = style.bold { codes.append(bold ? "1" : "22") }
+        if let italic = style.italic { codes.append(italic ? "3" : "23") }
+        if let underline = style.underline { codes.append(underline ? "4" : "24") }
+        guard !codes.isEmpty else { return text }
+        return "\u{001B}[\(codes.joined(separator: ";"))m\(text)\u{001B}[0m"
     }
 
     private static func styledTitle(

@@ -166,54 +166,7 @@ enum ECSourceHTMLRendererCSS {
                     decl("tab-size", "4")
                 ),
 
-                rule(
-                    ".tok-keyword",
-                    decl("color", "#5b4b8a"),
-                    decl("font-weight", "600")
-                ),
-
-                rule(
-                    ".tok-ident",
-                    decl("color", "inherit")
-                ),
-
-                rule(
-                    ".tok-account",
-                    decl("color", "#5d4a2f"),
-                    decl("font-weight", "600")
-                ),
-
-                rule(
-                    ".tok-entity",
-                    decl("color", "#b45309"),
-                    decl("font-weight", "600")
-                ),
-
-                rule(
-                    ".tok-number",
-                    decl("color", "#8b5e34")
-                ),
-
-                rule(
-                    ".tok-string",
-                    decl("color", "#2f6f5e")
-                ),
-
-                rule(
-                    ".tok-date",
-                    decl("color", "#4b647d")
-                ),
-
-                rule(
-                    ".tok-punct",
-                    decl("color", "#727985")
-                ),
-
-                rule(
-                    ".tok-comment",
-                    decl("color", "#6b7280"),
-                    decl("font-style", "italic")
-                ),
+                // Token styles are lowered from SyntaxStyle onto individual spans.
 
                 rule(
                     ".src-line-no-hidden",

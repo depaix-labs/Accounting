@@ -63,6 +63,20 @@ public struct AssetFilingReconciliationRow: Sendable {
     }
 }
 
+public enum AssetFilingReadinessError: LocalizedError {
+    case noChecks
+    case failedChecks(Int)
+
+    public var errorDescription: String? {
+        switch self {
+        case .noChecks:
+            return "Asset filing is not approved: no reconciliation checks were run."
+        case .failedChecks(let count):
+            return "Asset filing is not approved: \(count) reconciliation checks failed."
+        }
+    }
+}
+
 public struct AssetFilingReconciliationReport: PresentableOutput {
     public let period: PeriodWindow
     public let tolerance: Decimal
@@ -87,5 +101,14 @@ public struct AssetFilingReconciliationReport: PresentableOutput {
 
     public var failureCount: Int {
         rows.filter { !$0.passed }.count
+    }
+
+    public func assertReadyForFiling() throws {
+        guard checkCount > 0 else {
+            throw AssetFilingReadinessError.noChecks
+        }
+        guard failureCount == 0 else {
+            throw AssetFilingReadinessError.failedChecks(failureCount)
+        }
     }
 }

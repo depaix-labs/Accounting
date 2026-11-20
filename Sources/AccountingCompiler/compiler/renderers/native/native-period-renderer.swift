@@ -10,6 +10,20 @@ public enum NativePeriodRenderer {
         opts.periodShape = options.periodShape ?? output.shape
         let presentation = opts.presentationOptions()
 
+        // Preflight every displayed period before emitting any figures.
+        try RGSAssembler.assertBalancedByL2(
+            chart: output.chart,
+            bundle: output.assembled.current.bundle,
+            equityCode: opts.equityCode
+        )
+        if opts.comparePrevious, let previous = output.assembled.previous {
+            try RGSAssembler.assertBalancedByL2(
+                chart: output.chart,
+                bundle: previous.bundle,
+                equityCode: opts.equityCode
+            )
+        }
+
         try renderPeriod(
             titleBalance: "Balance Sheet (current)",
             titleIncome: "Income Statement (current)",
@@ -50,16 +64,6 @@ public enum NativePeriodRenderer {
     ) throws {
         if options.showRangeHeading {
             print(period.range.string())
-        }
-
-        do {
-            try RGSAssembler.assertBalancedByL2(
-                chart: chart,
-                bundle: period.bundle,
-                equityCode: options.equityCode
-            )
-        } catch {
-            fputs("warning: \(error.localizedDescription)\n", stderr)
         }
 
         try RGSPrinter.printBalanceByL2Buckets(

@@ -9,53 +9,55 @@ public struct AccountStore: Codable, Sendable {
 
     public let hierarchyProblemsById: [Int: RGSIdentifierHierarchy.Problem]
 
-    // Build from a full compiled chart (preferred: enables identifier lookups)
+    /// A chart-backed store exposes both posting-code and RGS-identifier lookup.
+    /// The chart's index must agree with its authoritative node collection.
     public init(chart: CompiledChart) throws {
-        var codeMap: [String: RGSNode] = [:]
-        for n in chart.nodes {
-            let code = n.codes.code
-            if codeMap.updateValue(n, forKey: code) != nil {
-                throw AccountStoreError.duplicateCode(code, at: nil)
-            }
+        guard let index = chart.index else {
+            throw AccountStoreError.compiledChartIndexEmpty
         }
-        var identMap: [String: RGSNode] = [:]
-
-        guard let idx = chart.index else { throw AccountStoreError.compiledChartIndexEmpty }
-
-        // Index provides ident -> node.id
-        for (ident, id) in idx.byIdentifier {
-            // nodes are typically few enough that building a dict is fine;
-            // if you already have a nodeById map elsewhere, reuse it.
-            if let node = chart.nodes.first(where: { $0.id == id }) {
-                identMap[ident] = node
-            }
-        }
-        self.byCode = codeMap
-        self.byIdentifier = identMap
-
-        // NEW: compute hierarchy problems once
-        let hier = RGSIdentifierHierarchy.build(from: chart.nodes)
-        let problemsById = Dictionary(uniqueKeysWithValues: hier.problems.map { ($0.childId, $0) })
-        self.hierarchyProblemsById = problemsById
+        try self.init(nodes: chart.nodes, chartIndex: index)
     }
 
-    // Convenience: build from nodes only (identifier lookups disabled)
+    /// Nodes-only construction deliberately leaves identifier lookup disabled.
     public init(nodes: [RGSNode]) throws {
+        try self.init(nodes: nodes, chartIndex: nil)
+    }
+
+    private init(nodes: [RGSNode], chartIndex: RGSIndex?) throws {
         var codeMap: [String: RGSNode] = [:]
-        for n in nodes {
-            let code = n.codes.code
-            if codeMap.updateValue(n, forKey: code) != nil {
-                throw AccountStoreError.duplicateCode(code, at: nil)
+        for node in nodes {
+            if codeMap.updateValue(node, forKey: node.codes.code) != nil {
+                throw AccountStoreError.duplicateCode(node.codes.code, at: nil)
             }
         }
 
-        // Fallback build of problems even without a compiled index
-        let hier = RGSIdentifierHierarchy.build(from: nodes)
-        let problemsById = Dictionary(uniqueKeysWithValues: hier.problems.map { ($0.childId, $0) })
+        // Validate numeric identity even for nodes-only stores. In chart-backed
+        // stores, reject indexes that disagree with their authoritative nodes.
+        let (canonicalIndex, _) = try RGSIndex.build(from: nodes)
+        if let chartIndex, chartIndex != canonicalIndex {
+            throw AccountStoreError.inconsistentChartIndex
+        }
+
+        var identifierMap: [String: RGSNode] = [:]
+        if chartIndex != nil {
+            // Numeric IDs are unique after RGSIndex.build, so this is safe.
+            let nodesByID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+            for (identifier, id) in canonicalIndex.byIdentifier {
+                guard let node = nodesByID[id] else {
+                    throw AccountStoreError.inconsistentChartIndex
+                }
+                identifierMap[identifier] = node
+            }
+        }
 
         self.byCode = codeMap
-        self.byIdentifier = [:]
-        self.hierarchyProblemsById = problemsById
+        self.byIdentifier = identifierMap
+
+        // Hierarchy diagnostics are retained as a separate resolution gate.
+        let hierarchy = RGSIdentifierHierarchy.build(from: nodes)
+        self.hierarchyProblemsById = Dictionary(
+            uniqueKeysWithValues: hierarchy.problems.map { ($0.childId, $0) }
+        )
     }
 
     // @inlinable
@@ -99,7 +101,6 @@ public struct AccountStore: Codable, Sendable {
         switch ref {
         case .code(let s):
             if let n = byCode[s] { node = n }
-            else if let n = byIdentifier[s] { node = n }  // forgiving
             else { throw AccountStoreError.notFound(code: s, at: loc) }
 
         case .identifier(let ident):

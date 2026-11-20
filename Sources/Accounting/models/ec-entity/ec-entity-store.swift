@@ -173,22 +173,19 @@ public extension EntityStore {
         return out
     }
 
-    /// Build normalized OwnershipSlice[] *as of* a date from OwnerEquity on each EntityDef.
-    /// Accepts percentages in 0…1 or 0…100; normalizes to sum==1.
+    /// Ownership shares are declared as percentage points (0...100).
+    /// The loader validates their global total; never renormalize invalid values.
     func ownershipSlices(asOf date: Date) -> [OwnershipSlice] {
-        var raw: [(id: Int, pct: Decimal)] = []
-
         let idx = idIndex
-        for def in byFull.values {
-            guard let oe = def.ownerEquity, let id = idx[def.key] else { continue }
-            var p = oe.percentage(on: date)         // Decimal
-            if p > 1 { p /= 100 }                   // allow “50.0” as 50%
-            if p > 0 { raw.append((id, p)) }
+        return byFull.values.compactMap { def in
+            guard let equity = def.ownerEquity,
+                  equity.initial.date <= date,
+                  let id = idx[def.key]
+            else { return nil }
+
+            let percentage = equity.percentage(on: date)
+            guard percentage > 0 else { return nil }
+            return OwnershipSlice(entityId: id, percent: percentage / 100)
         }
-
-        let total = raw.reduce(Decimal(0)) { $0 + $1.pct }
-        guard total > 0 else { return [] }
-
-        return raw.map { OwnershipSlice(entityId: $0.id, percent: $0.pct / total) }
     }
 }

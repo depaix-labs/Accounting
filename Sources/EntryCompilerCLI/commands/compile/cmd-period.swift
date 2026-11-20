@@ -52,6 +52,18 @@ enum PeriodCommandRunner {
             calendar: calendar
         )
 
+        // This preflight covers every presentation route, including PDF output.
+        try RGSAssembler.assertBalancedByL2(
+            chart: native.chart,
+            bundle: native.assembled.current.bundle
+        )
+        if options.compare, let previous = native.assembled.previous {
+            try RGSAssembler.assertBalancedByL2(
+                chart: native.chart,
+                bundle: previous.bundle
+            )
+        }
+
         if options.hierarchyDiagnostics {
             let project = EntryCompilerProject(
                 root: context.root

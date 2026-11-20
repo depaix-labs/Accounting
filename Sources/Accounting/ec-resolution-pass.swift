@@ -7,7 +7,8 @@ public enum EntryResolutionPass {
         entities: EntityStore,
         accounts: AccountStore,
         transactions: TransactionStore,
-        settings: EntryCompilerSettings
+        settings: EntryCompilerSettings,
+        localAccounts: LocalAccountCatalog? = nil
     ) throws -> [ResolvedEntry] {
         // Keep your depreciation prepass
         let entitiesResolved = try DepreciationResolutionPass.run(on: entities, using: accounts)
@@ -23,8 +24,34 @@ public enum EntryResolutionPass {
 
                     let eDef = try entitiesResolved.resolve(l.entity, at: loc)
 
-                    // AccountStore.resolve returns node; use canonical posting code
-                    let node = try accounts.resolve(l.account, at: loc)
+                    // Only explicit local-code references enter the local namespace.
+                    // Identifier/path references retain their existing RGS semantics.
+                    let localAccount: LocalAccount?
+                    if case .code(let code) = l.account,
+                       let localAccounts,
+                       let key = try? AccountKey(code) {
+                        localAccount = localAccounts.account(for: key)
+                    } else {
+                        localAccount = nil
+                    }
+
+                    let node = try accounts.resolve(
+                        localAccount.map { AccountRef.identifier($0.rgsIdentifier) } ?? l.account,
+                        at: loc
+                    )
+                    if let localAccount {
+                        guard let catalogNode = localAccounts?.rgsNode(for: localAccount.key),
+                              catalogNode.id == node.id,
+                              catalogNode.codes.code == node.codes.code,
+                              catalogNode.side == node.side,
+                              catalogNode.direction == node.direction,
+                              node.postable else {
+                            throw LocalAccountError.incompatibleChartBinding(
+                                code: localAccount.key.code,
+                                identifier: localAccount.rgsIdentifier
+                            )
+                        }
+                    }
 
                     try validateEntityAccountIntersection(
                         entity: eDef,
@@ -38,7 +65,8 @@ public enum EntryResolutionPass {
                         account: try AccountKey(postingCode),
                         direction: l.direction,
                         amount: l.amount,
-                        adjustment: l.adjustment
+                        adjustment: l.adjustment,
+                        localAccount: localAccount?.key
                     )
                 }
 
@@ -76,14 +104,16 @@ public extension Array where Element == Entry {
         using entities: EntityStore,
         accounts: AccountStore,        // node-backed
         transactions: TransactionStore,
-        settings: EntryCompilerSettings
+        settings: EntryCompilerSettings,
+        localAccounts: LocalAccountCatalog? = nil
     ) throws -> [ResolvedEntry] {
         try EntryResolutionPass.resolve(
             self,
             entities: entities,
             accounts: accounts,
             transactions: transactions,
-            settings: settings
+            settings: settings,
+            localAccounts: localAccounts
         )
     }
 }

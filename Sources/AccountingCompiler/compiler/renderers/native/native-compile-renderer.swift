@@ -6,15 +6,11 @@ public enum NativeCompileRenderer {
         _ output: NativeCompileOutput,
         options: NativeRenderOptions = .init()
     ) throws {
-        do {
-            try RGSAssembler.assertBalancedByL2(
-                chart: output.chart,
-                bundle: output.bundle,
-                equityCode: options.equityCode
-            )
-        } catch {
-            fputs("warning: \(error.localizedDescription)\n", stderr)
-        }
+        try RGSAssembler.assertBalancedByL2(
+            chart: output.chart,
+            bundle: output.bundle,
+            equityCode: options.equityCode
+        )
 
         let presentation = options.presentationOptions()
 
