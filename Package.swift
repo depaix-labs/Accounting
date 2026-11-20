@@ -44,6 +44,7 @@ let package = Package(
             targets: ["ecvparity"]
         ),
         .library(name: "AccountingParsers", targets: ["AccountingParsers"]),
+        .library(name: "AccountingV2Fixtures", targets: ["AccountingV2Fixtures"]),
     ],
     dependencies: [
         .package(url: "https://github.com/leviouwendijk/plate.git", branch: "master"),
@@ -193,6 +194,11 @@ let package = Package(
                 .product(name: "Terminal", package: "Terminal"),
             ],
             path: "Sources/EntryCompilerParity"
+        ),
+        .target(
+            name: "AccountingV2Fixtures",
+            dependencies: ["AccountingV2"],
+            path: "Sources/AccountingV2Fixtures"
         ),
     ]
 )

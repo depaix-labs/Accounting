@@ -40,10 +40,6 @@ let package = Package(
         .package(path: ".."),
     ],
     targets: [
-        .target(
-            name: "AccountingV2Fixtures",
-            dependencies: [.product(name: "AccountingV2", package: "Accounting")]
-        ),
 
         .executableTarget(
             name: "AccountingSyntaxTests",
@@ -60,7 +56,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Accounting", package: "Accounting"),
                 .product(name: "AccountingV2", package: "Accounting"),
-                "AccountingV2Fixtures",
+                .product(name: "AccountingV2Fixtures", package: "Accounting"),
                 .product(name: "AccountingParsers", package: "Accounting"),
                 .product(name: "AccountingCompiler", package: "Accounting"),
                 .product(name: "plate", package: "plate"),
