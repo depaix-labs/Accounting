@@ -51,8 +51,8 @@ let package = Package(
         .package(url: "https://github.com/leviouwendijk/Math.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Primitives.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Methods.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/HTML.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/CSS.git", branch: "master"),
+        .package(url: "https://github.com/swift-dsl/HTML.git", branch: "master"),
+        .package(url: "https://github.com/swift-dsl/CSS.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Writers.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Terminal.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Interfaces.git", branch: "master"),
@@ -62,7 +62,7 @@ let package = Package(
         .package(url: "https://github.com/leviouwendijk/Readers.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Path.git", branch: "master"),
         .package(url: "https://github.com/leviouwendijk/Workspace.git", branch: "master"),
-        .package(url: "https://github.com/leviouwendijk/Syntax.git", branch: "master"),
+        .package(url: "https://github.com/swift-langs/Syntax.git", branch: "master"),
     ],
     targets: [
         .target(
